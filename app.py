@@ -30,7 +30,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 1rem; max-width: 1200px; }
+    .block-container { padding-top: 1rem; max-width: 1400px; }
     .spot-badge {
         display: inline-block; background: #ffd700; color: #000;
         padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 14px;
@@ -160,6 +160,45 @@ def get_snapshot_count(symbol: str) -> int:
     return count
 
 
+def get_latest_participant_oi() -> pd.DataFrame:
+    conn = get_db()
+    if conn is None:
+        return pd.DataFrame()
+    try:
+        df = pd.read_sql_query("""
+            SELECT * FROM participant_oi
+            WHERE trade_date = (SELECT MAX(trade_date) FROM participant_oi)
+            ORDER BY instrument
+        """, conn)
+    except Exception:
+        df = pd.DataFrame()
+    conn.close()
+    return df
+
+
+def get_closing_oi_totals(symbol: str) -> dict:
+    """Get total CE OI, PE OI and PCR from latest live snapshot."""
+    conn = get_db()
+    if conn is None:
+        return {}
+    today = date.today().isoformat()
+    row = conn.execute("""
+        SELECT
+            COALESCE(SUM(ce_oi), 0) as total_ce,
+            COALESCE(SUM(pe_oi), 0) as total_pe
+        FROM live_oi
+        WHERE symbol = ?
+          AND timestamp >= ?
+          AND timestamp = (SELECT MAX(timestamp) FROM live_oi WHERE symbol = ? AND timestamp >= ?)
+    """, [symbol, today, symbol, today]).fetchone()
+    conn.close()
+    if row is None:
+        return {}
+    total_ce, total_pe = row
+    pcr = total_pe / total_ce if total_ce > 0 else 0
+    return {"total_ce": total_ce, "total_pe": total_pe, "pcr": pcr}
+
+
 # ── Build row data for interactive table ──────────────────────────────────────
 
 def build_row_data(live_df: pd.DataFrame, old_df: pd.DataFrame, spot: float) -> list[dict]:
@@ -182,14 +221,18 @@ def build_row_data(live_df: pd.DataFrame, old_df: pd.DataFrame, spot: float) -> 
         ce_pct = ((ce_live - ce_old) / ce_old * 100) if ce_old else 0.0
         pe_pct = ((pe_live - pe_old) / pe_old * 100) if pe_old else 0.0
         rows.append({
-            "strike":   int(s),
-            "ce_old":   ce_old,
-            "ce_live":  ce_live,
-            "ce_pct":   ce_pct,
-            "pe_live":  pe_live,
-            "pe_old":   pe_old,
-            "pe_pct":   pe_pct,
-            "is_atm":   s == atm,
+            "strike":     int(s),
+            "ce_old":     ce_old,
+            "ce_live":    ce_live,
+            "ce_pct":     ce_pct,
+            "ce_chg_oi":  int(lr.get("ce_chg_oi", 0)),
+            "ce_volume":  int(lr.get("ce_volume", 0)),
+            "pe_live":    pe_live,
+            "pe_old":     pe_old,
+            "pe_pct":     pe_pct,
+            "pe_chg_oi":  int(lr.get("pe_chg_oi", 0)),
+            "pe_volume":  int(lr.get("pe_volume", 0)),
+            "is_atm":     s == atm,
         })
     return rows
 
@@ -242,6 +285,130 @@ def render_strike_chart(symbol: str, strike: float):
     st.altair_chart(combined, use_container_width=True)
 
 
+# ── Participant OI Summary ────────────────────────────────────────────────────
+
+def _format_contracts(val: int) -> str:
+    """Format large numbers as K/L for display."""
+    abs_val = abs(val)
+    sign = "+" if val > 0 else ""
+    if abs_val >= 100_000:
+        return f"{sign}{val / 100_000:.1f}L"
+    if abs_val >= 1_000:
+        return f"{sign}{val / 1_000:.0f}K"
+    return f"{sign}{val:,}"
+
+
+def render_participant_summary(p_df: pd.DataFrame):
+    """Render combined Index Options (CE+PE) gross OI chart + net contracts."""
+    if p_df.empty:
+        st.caption("No participant OI data yet. Available after 5:30 PM on trading days.")
+        return
+
+    trade_date = p_df["trade_date"].iloc[0]
+
+    # Combine Index Call + Index Put into "Index Options"
+    ce_row = None
+    pe_row = None
+    for _, row in p_df.iterrows():
+        inst = str(row["instrument"]).strip().upper()
+        if "CALL" in inst and "INDEX" in inst:
+            ce_row = row
+        elif "PUT" in inst and "INDEX" in inst:
+            pe_row = row
+
+    if ce_row is None and pe_row is None:
+        st.caption("No index options participant data found.")
+        return
+
+    categories = ["Client", "FII", "DII", "Pro"]
+    chart_data = []
+    net_data = []
+
+    for cat in categories:
+        key = cat.lower()
+        long_val = 0
+        short_val = 0
+        if ce_row is not None:
+            long_val += int(ce_row.get(f"{key}_long", 0))
+            short_val += int(ce_row.get(f"{key}_short", 0))
+        if pe_row is not None:
+            long_val += int(pe_row.get(f"{key}_long", 0))
+            short_val += int(pe_row.get(f"{key}_short", 0))
+
+        chart_data.append({"Participant": cat, "Position": "Long", "Contracts": long_val})
+        chart_data.append({"Participant": cat, "Position": "Short", "Contracts": short_val})
+        net_data.append({"participant": cat, "net": long_val - short_val})
+
+    cdf = pd.DataFrame(chart_data)
+
+    st.markdown(
+        f'<div style="text-align:center; font-size:13px; color:#aaa; margin-bottom:4px;">'
+        f'📅 {trade_date} &nbsp;&nbsp; <b>Gross Open Interest — Index Options</b></div>',
+        unsafe_allow_html=True,
+    )
+
+    chart = alt.Chart(cdf).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
+        x=alt.X("Participant:N", axis=alt.Axis(labelAngle=0), sort=categories, title=None),
+        y=alt.Y("Contracts:Q", title=""),
+        color=alt.Color("Position:N", scale=alt.Scale(
+            domain=["Long", "Short"],
+            range=["#66BB6A", "#ef5350"],
+        ), legend=alt.Legend(orient="top")),
+        xOffset="Position:N",
+        tooltip=[
+            alt.Tooltip("Participant:N"),
+            alt.Tooltip("Position:N"),
+            alt.Tooltip("Contracts:Q", format=","),
+        ],
+    ).properties(height=260).configure_view(
+        strokeWidth=0
+    ).configure_axis(
+        labelColor="#e0e0e0", titleColor="#e0e0e0",
+        gridColor="#222", domainColor="#555",
+    ).configure_legend(
+        labelColor="#e0e0e0", titleColor="#e0e0e0",
+    ).configure(background="#0e1117")
+
+    st.altair_chart(chart, use_container_width=True)
+
+    # Net contracts row below the chart
+    net_cols = st.columns(len(net_data))
+    for i, nd in enumerate(net_data):
+        net = nd["net"]
+        color = "#66BB6A" if net > 0 else "#ef5350"
+        label = _format_contracts(net)
+        with net_cols[i]:
+            st.markdown(
+                f'<div style="text-align:center;">'
+                f'<div style="font-size:12px; color:#aaa;">{nd["participant"]}</div>'
+                f'<div style="font-size:16px; font-weight:700; color:{color};">{label}</div>'
+                f'<div style="font-size:10px; color:#666;">Net Contracts</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+
+def render_oi_summary(symbol: str, totals: dict):
+    """Render Total CE OI, Total PE OI, and PCR as metrics above the table."""
+    if not totals:
+        return
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Total CE OI", f"{totals['total_ce']:,}")
+    with c2:
+        st.metric("Total PE OI", f"{totals['total_pe']:,}")
+    with c3:
+        pcr = totals["pcr"]
+        if pcr > 1.2:
+            pcr_label = f"{pcr:.2f} 🟢 Bullish"
+        elif pcr < 0.8:
+            pcr_label = f"{pcr:.2f} 🔴 Bearish"
+        else:
+            pcr_label = f"{pcr:.2f} ⚪ Neutral"
+        st.metric("PCR (Put/Call Ratio)", pcr_label)
+
+
 # ── Interactive Table with clickable Live cells ──────────────────────────────
 
 def _pct_tag(pct: float) -> str:
@@ -252,56 +419,81 @@ def _pct_tag(pct: float) -> str:
     return f"{sign}{abs(pct):.1f}%"
 
 
+def _chg_color(val: int) -> str:
+    if val > 0:
+        return "#66BB6A"
+    if val < 0:
+        return "#ef5350"
+    return "#666"
+
+
+def _chg_fmt(val: int) -> str:
+    if val > 0:
+        return f"+{val:,}"
+    return f"{val:,}"
+
+
 def render_oi_table(symbol: str, rows: list[dict]):
     """Render the OI table row-by-row. Live cells are buttons that open a chart dialog."""
 
+    col_weights = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+
     # ── Level-1 group headers: CALL | STRIKE | PUT ──
-    g1, g2, g3 = st.columns([2, 1, 2])
+    g1, g2, g3 = st.columns([4, 1, 4])
     g1.markdown('<div class="tbl-group" style="color:#ef9a9a">CALL (CE)</div>', unsafe_allow_html=True)
     g2.markdown('<div class="tbl-group" style="color:#ffd700">⬍</div>', unsafe_allow_html=True)
     g3.markdown('<div class="tbl-group" style="color:#a5d6a7">PUT (PE)</div>', unsafe_allow_html=True)
 
-    # ── Level-2 sub-headers: Old | Live | STRIKE | Live | Old ──
-    h1, h2, h3, h4, h5 = st.columns([1, 1, 1, 1, 1])
-    h1.markdown('<div class="tbl-sub">Old</div>', unsafe_allow_html=True)
-    h2.markdown('<div class="tbl-sub">Live 🔍</div>', unsafe_allow_html=True)
-    h3.markdown('<div class="tbl-sub" style="color:#ffd700">STRIKE</div>', unsafe_allow_html=True)
-    h4.markdown('<div class="tbl-sub">Live 🔍</div>', unsafe_allow_html=True)
-    h5.markdown('<div class="tbl-sub">Old</div>', unsafe_allow_html=True)
+    # ── Level-2 sub-headers ──
+    cols_h = st.columns(col_weights)
+    headers = ["Vol", "Chg OI", "OI", "Live 🔍", "STRIKE", "Live 🔍", "OI", "Chg OI", "Vol"]
+    header_colors = ["#888", "#888", "#888", "#aaa", "#ffd700", "#aaa", "#888", "#888", "#888"]
+    for i, h in enumerate(headers):
+        cols_h[i].markdown(f'<div class="tbl-sub" style="color:{header_colors[i]}">{h}</div>', unsafe_allow_html=True)
 
     # ── Data rows ──
     for row in rows:
         s = row["strike"]
         atm_bg = "background-color:#2a2a00;" if row["is_atm"] else ""
 
-        c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
+        c = st.columns(col_weights)
 
-        with c1:
-            st.markdown(
-                f'<div class="tbl-cell" style="color:#ef9a9a; opacity:0.5; {atm_bg}">{row["ce_old"]:,}</div>',
-                unsafe_allow_html=True,
-            )
-        with c2:
+        # CE Volume
+        with c[0]:
+            st.markdown(f'<div class="tbl-cell" style="color:#ef9a9a; opacity:0.5; {atm_bg}">{row["ce_volume"]:,}</div>', unsafe_allow_html=True)
+        # CE Change in OI
+        with c[1]:
+            chg = row["ce_chg_oi"]
+            st.markdown(f'<div class="tbl-cell" style="color:{_chg_color(chg)}; {atm_bg}">{_chg_fmt(chg)}</div>', unsafe_allow_html=True)
+        # CE OI (old/closing)
+        with c[2]:
+            st.markdown(f'<div class="tbl-cell" style="color:#ef9a9a; opacity:0.5; {atm_bg}">{row["ce_old"]:,}</div>', unsafe_allow_html=True)
+        # CE Live OI (clickable)
+        with c[3]:
             ce_tag = _pct_tag(row["ce_pct"])
             if st.button(f'{row["ce_live"]:,}  {ce_tag}', key=f"ce_{symbol}_{s}", use_container_width=True):
                 show_chart_dialog(symbol, s)
-        with c3:
+        # Strike
+        with c[4]:
             clr = "#ffd700" if row["is_atm"] else "#e0e0e0"
             wt = "800" if row["is_atm"] else "600"
             sz = "15px" if row["is_atm"] else "13px"
-            st.markdown(
-                f'<div class="tbl-cell" style="color:{clr}; font-weight:{wt}; font-size:{sz}; {atm_bg}">{s:,}</div>',
-                unsafe_allow_html=True,
-            )
-        with c4:
+            st.markdown(f'<div class="tbl-cell" style="color:{clr}; font-weight:{wt}; font-size:{sz}; {atm_bg}">{s:,}</div>', unsafe_allow_html=True)
+        # PE Live OI (clickable)
+        with c[5]:
             pe_tag = _pct_tag(row["pe_pct"])
             if st.button(f'{row["pe_live"]:,}  {pe_tag}', key=f"pe_{symbol}_{s}", use_container_width=True):
                 show_chart_dialog(symbol, s)
-        with c5:
-            st.markdown(
-                f'<div class="tbl-cell" style="color:#a5d6a7; opacity:0.5; {atm_bg}">{row["pe_old"]:,}</div>',
-                unsafe_allow_html=True,
-            )
+        # PE OI (old/closing)
+        with c[6]:
+            st.markdown(f'<div class="tbl-cell" style="color:#a5d6a7; opacity:0.5; {atm_bg}">{row["pe_old"]:,}</div>', unsafe_allow_html=True)
+        # PE Change in OI
+        with c[7]:
+            chg = row["pe_chg_oi"]
+            st.markdown(f'<div class="tbl-cell" style="color:{_chg_color(chg)}; {atm_bg}">{_chg_fmt(chg)}</div>', unsafe_allow_html=True)
+        # PE Volume
+        with c[8]:
+            st.markdown(f'<div class="tbl-cell" style="color:#a5d6a7; opacity:0.5; {atm_bg}">{row["pe_volume"]:,}</div>', unsafe_allow_html=True)
 
 
 @st.dialog("📈 OI Intraday Chart", width="large")  # type: ignore[attr-defined]
@@ -329,6 +521,13 @@ def main():
 
     st.divider()
 
+    # ── Participant OI Summary (FII/DII/Pro/Client) ──
+    p_df = get_latest_participant_oi()
+    with st.expander("📊 Participant Positions (FII / DII / Pro / Client)", expanded=True):
+        render_participant_summary(p_df)
+
+    st.divider()
+
     # Tabs per symbol
     tabs = st.tabs(SYMBOLS)
 
@@ -345,7 +544,6 @@ def main():
                     "Or wait for the cron job to kick in (every 5 min, Mon–Fri, 9:15–3:30)."
                 )
 
-                # Show a quick live fetch button
                 if st.button(f"⚡ Fetch {symbol} Now", key=f"fetch_{symbol}"):
                     with st.spinner(f"Fetching {symbol}..."):
                         import subprocess
@@ -362,6 +560,10 @@ def main():
 
             spot = float(live_df["spot"].iloc[0])
             last_ts = live_df["timestamp"].iloc[0]
+
+            # OI Totals: Total CE, Total PE, PCR
+            totals = get_closing_oi_totals(symbol)
+            render_oi_summary(symbol, totals)
 
             col_info1, col_info2, col_info3 = st.columns([1, 1, 1])
             with col_info1:

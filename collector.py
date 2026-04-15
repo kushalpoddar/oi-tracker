@@ -243,6 +243,104 @@ def collect_closing():
 
 
 # ---------------------------------------------------------------------------
+# Participant-wise OI CSV fetcher
+# ---------------------------------------------------------------------------
+
+def fetch_participant_oi_csv() -> pd.DataFrame | None:
+    """Fetch participant-wise OI CSV from NSE archives and return normalized rows."""
+    import io
+    import urllib.request
+
+    now = datetime.now(IST)
+    date_ddmmyyyy = now.strftime("%d%m%Y")
+
+    urls = [
+        f"https://archives.nseindia.com/content/nsccl/fao_participant_oi_{date_ddmmyyyy}.csv",
+        f"https://nsearchives.nseindia.com/content/nsccl/fao_participant_oi_{date_ddmmyyyy}.csv",
+    ]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/csv,text/html,application/xhtml+xml,*/*",
+        "Referer": "https://www.nseindia.com/",
+    }
+
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                csv_text = resp.read().decode("utf-8")
+                # Skip the first title row, use row 2 as header
+                df = pd.read_csv(io.StringIO(csv_text), skiprows=1)
+                df.columns = [c.strip() for c in df.columns]
+                if not df.empty:
+                    logger.info(f"  Fetched participant OI from {url}")
+                    return df
+        except Exception as e:
+            logger.debug(f"  {url} failed: {e}")
+            continue
+
+    return None
+
+
+def _safe_int(val) -> int:
+    """Convert a value to int, stripping commas and handling non-numeric gracefully."""
+    try:
+        return int(str(val).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return 0
+
+
+def normalize_participant_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Pivot the NSE participant OI CSV from:
+        Rows: Client, DII, FII, Pro  |  Cols: Future Index Long, Future Index Short, ...
+    Into:
+        Rows: Index Futures, Index Call Options, ...  |  Cols: client_long, client_short, fii_long, ...
+    """
+    # CSV columns: Client Type, Future Index Long, Future Index Short,
+    # Future Stock Long, Future Stock Short, Option Index Call Long,
+    # Option Index Put Long, Option Index Call Short, Option Index Put Short,
+    # Option Stock Call Long, Option Stock Put Long, Option Stock Call Short,
+    # Option Stock Put Short, Total Long Contracts, Total Short Contracts
+
+    instruments = {
+        "Index Futures":       ("Future Index Long",       "Future Index Short"),
+        "Index Call Options":  ("Option Index Call Long",  "Option Index Call Short"),
+        "Index Put Options":   ("Option Index Put Long",   "Option Index Put Short"),
+        "Stock Futures":       ("Future Stock Long",       "Future Stock Short"),
+        "Stock Call Options":  ("Option Stock Call Long",  "Option Stock Call Short"),
+        "Stock Put Options":   ("Option Stock Put Long",   "Option Stock Put Short"),
+    }
+
+    participant_map = {"client": "client", "dii": "dii", "fii": "fii", "pro": "pro"}
+
+    # Build lookup: participant name → row
+    p_rows = {}
+    for _, row in df.iterrows():
+        name = str(row.iloc[0]).strip().lower()
+        if name in participant_map:
+            p_rows[name] = row
+
+    if not p_rows:
+        return pd.DataFrame()
+
+    result = []
+    for inst_name, (long_col, short_col) in instruments.items():
+        row_data = {"instrument": inst_name}
+        for p_key, prefix in participant_map.items():
+            if p_key not in p_rows:
+                continue
+            p_row = p_rows[p_key]
+            row_data[f"{prefix}_long"] = _safe_int(p_row.get(long_col, 0))
+            row_data[f"{prefix}_short"] = _safe_int(p_row.get(short_col, 0))
+        result.append(row_data)
+
+    return pd.DataFrame(result) if result else pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
 # --dayend: participant OI + FII/DII activity (after 5:30 PM)
 # ---------------------------------------------------------------------------
 
@@ -271,13 +369,15 @@ def collect_dayend():
     except Exception as e:
         logger.error(f"  FII/DII failed: {e}")
 
-    # Participant-wise OI CSV
+    # Participant-wise OI CSV from NSE archives
     try:
-        import nsepython as nsepy
-        date_str = datetime.now(IST).strftime("%d%b%Y").upper()
-        p_df = nsepy.get_fao_participant_oi(date_str)
+        p_df = fetch_participant_oi_csv()
         if p_df is not None and not p_df.empty:
+            p_df = normalize_participant_df(p_df)
             for _, row in p_df.iterrows():
+                instrument = str(row.get("instrument", "")).strip()
+                if not instrument:
+                    continue
                 with conn:
                     conn.execute("""
                         INSERT OR REPLACE INTO participant_oi
@@ -289,17 +389,19 @@ def collect_dayend():
                         VALUES (?,?,?,?,?,?,?,?,?,?)
                     """, (
                         today,
-                        str(row.iloc[0]) if len(row) > 0 else "",
-                        int(row.iloc[1]) if len(row) > 1 else 0,
-                        int(row.iloc[2]) if len(row) > 2 else 0,
-                        int(row.iloc[3]) if len(row) > 3 else 0,
-                        int(row.iloc[4]) if len(row) > 4 else 0,
-                        int(row.iloc[5]) if len(row) > 5 else 0,
-                        int(row.iloc[6]) if len(row) > 6 else 0,
-                        int(row.iloc[7]) if len(row) > 7 else 0,
-                        int(row.iloc[8]) if len(row) > 8 else 0,
+                        instrument,
+                        _safe_int(row.get("client_long", 0)),
+                        _safe_int(row.get("client_short", 0)),
+                        _safe_int(row.get("dii_long", 0)),
+                        _safe_int(row.get("dii_short", 0)),
+                        _safe_int(row.get("fii_long", 0)),
+                        _safe_int(row.get("fii_short", 0)),
+                        _safe_int(row.get("pro_long", 0)),
+                        _safe_int(row.get("pro_short", 0)),
                     ))
             logger.info("  Participant OI saved")
+        else:
+            logger.warning("  Participant OI CSV not available yet (published ~5-6 PM IST)")
     except Exception as e:
         logger.error(f"  Participant OI failed: {e}")
 
