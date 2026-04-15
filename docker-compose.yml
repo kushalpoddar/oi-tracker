@@ -1,0 +1,14 @@
+services:
+  oi-tracker:
+    build: .
+    container_name: oi-tracker
+    ports:
+      - "8501:8501"
+    volumes:
+      - oi-data:/app/data
+    environment:
+      - TZ=Asia/Kolkata
+    restart: unless-stopped
+
+volumes:
+  oi-data:
