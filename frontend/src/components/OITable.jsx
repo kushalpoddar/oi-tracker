@@ -30,6 +30,8 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
   const strikeTableRef = useRef(null)
   const peTableRef = useRef(null)
 
+  const hasAnyPct = rows.some(r => r.ce_pct !== 0 || r.pe_pct !== 0)
+
   const syncHeights = useCallback(() => {
     const tables = [ceTableRef.current, strikeTableRef.current, peTableRef.current]
     if (tables.some(t => !t)) return
@@ -82,7 +84,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                     className={`${liveColor(row.ce_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
                   >
                     {row.ce_live.toLocaleString()}
-                    <div className="text-[11px]">{pctTag(row.ce_pct) || '\u00A0'}</div>
+                    {hasAnyPct && <div className="text-[11px]">{pctTag(row.ce_pct) || '\u00A0'}</div>}
                   </button>
                 </td>
               </tr>
@@ -92,23 +94,24 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
       </div>
 
       {/* Strike center */}
-      <div className="shrink-0 bg-[#1a1a2e] border-x border-gray-700">
+      <div className="shrink-0" style={{ background: '#ffd700' }}>
         <table ref={strikeTableRef} className="border-collapse whitespace-nowrap">
           <thead>
-            <tr className="bg-[#1a1a2e]">
-              <th className="text-center text-sm font-bold py-2 text-[var(--gold)] px-3 tracking-wider">⬍</th>
+            <tr style={{ background: '#ffd700' }}>
+              <th className="text-center text-sm font-bold py-2 text-black px-3 tracking-wider uppercase">Index</th>
             </tr>
-            <tr className="bg-[#141422] border-b border-[var(--gold)]/30">
-              <th className="py-1.5 px-3 text-center text-[11px] font-semibold text-[var(--gold)] opacity-80 uppercase tracking-wide">STRIKE</th>
+            <tr className="border-b border-yellow-700" style={{ background: '#e6c200' }}>
+              <th className="py-1.5 px-3 text-center text-[11px] font-semibold text-black uppercase tracking-wide">STRIKE</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(row => (
               <tr
                 key={row.strike}
-                className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/30' : ''}`}
+                className="border-b border-yellow-600/40"
+                style={{ background: row.is_atm ? '#ff8c00' : '#ffd700' }}
               >
-                <td className={`text-center px-3 py-1.5 font-semibold ${row.is_atm ? 'text-[var(--gold)] font-extrabold text-[15px]' : 'text-[var(--text-primary)]'}`}>
+                <td className={`text-center px-3 py-1.5 font-semibold text-black ${row.is_atm ? 'font-extrabold text-[15px]' : ''}`}>
                   {row.strike.toLocaleString()}
                 </td>
               </tr>
@@ -142,7 +145,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                     className={`${liveColor(row.pe_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
                   >
                     {row.pe_live.toLocaleString()}
-                    <div className="text-[11px]">{pctTag(row.pe_pct) || '\u00A0'}</div>
+                    {hasAnyPct && <div className="text-[11px]">{pctTag(row.pe_pct) || '\u00A0'}</div>}
                   </button>
                 </td>
                 <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_old.toLocaleString()}</td>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 40" fill="none">
+  <!-- Candlestick icon -->
+  <rect x="4" y="8" width="4" height="24" rx="1" fill="#ffd700"/>
+  <rect x="5.5" y="4" width="1" height="32" fill="#ffd700"/>
+  <rect x="12" y="14" width="4" height="16" rx="1" fill="#66bb6a"/>
+  <rect x="13.5" y="10" width="1" height="24" fill="#66bb6a"/>
+  <rect x="20" y="10" width="4" height="20" rx="1" fill="#ef5350"/>
+  <rect x="21.5" y="6" width="1" height="28" fill="#ef5350"/>
+  <text x="32" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" letter-spacing="-0.5">
+    <tspan fill="#ffd700">spot</tspan><tspan fill="#e0e0e0">price</tspan><tspan fill="#66bb6a">.in</tspan>
+  </text>
+</svg>
