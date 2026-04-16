@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function StatusBar({ status, onRefresh }) {
+export default function StatusBar({ onRefresh }) {
   const [spinning, setSpinning] = useState(false)
 
   const handleRefresh = async () => {
