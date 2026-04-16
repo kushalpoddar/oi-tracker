@@ -6,6 +6,19 @@ import StrikeChart from './components/StrikeChart'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY']
 
+function fmtDate(d) {
+  if (!d) return ''
+  const parts = d.split('-')
+  if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
+  return d
+}
+
+function fmtTime(ts) {
+  if (!ts) return ''
+  const timePart = ts.split(' ').pop()?.split('.')[0]
+  return timePart || ts
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('NIFTY')
   const [status, setStatus] = useState(null)
@@ -33,58 +46,76 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    fetchAll()
+    let active = true
+    const run = async () => { if (active) await fetchAll() }
+    run()
     const interval = setInterval(fetchAll, 30000)
-    return () => clearInterval(interval)
+    return () => { active = false; clearInterval(interval) }
   }, [fetchAll])
 
   const currentOi = oiData[activeTab]
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-4">
-      <h1 className="text-2xl font-bold mb-4">📊 OI Tracker</h1>
-
       <StatusBar status={status} onRefresh={fetchAll} />
 
       <ParticipantChart data={participants} />
 
-      <div className="border-t border-gray-700 my-4" />
-
       {/* Tabs */}
-      <div className="flex gap-1 mb-4">
+      <div className="flex gap-0 mt-5 border-b border-gray-700">
         {SYMBOLS.map(s => (
           <button
             key={s}
             onClick={() => { setActiveTab(s); setSelectedStrike(null) }}
-            className={`px-6 py-2 rounded-t-lg font-semibold text-sm transition-colors ${
+            className={`px-5 py-2.5 font-semibold text-sm transition-all relative cursor-pointer ${
               activeTab === s
-                ? 'bg-[var(--bg-secondary)] text-[var(--gold)] border-b-2 border-[var(--gold)]'
-                : 'bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                ? 'text-[var(--gold)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           >
             {s}
+            {activeTab === s && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--gold)] rounded-t" />
+            )}
           </button>
         ))}
       </div>
 
       {currentOi && currentOi.rows.length > 0 ? (
         <>
-          {/* Summary metrics */}
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <Metric label="Total CE OI" value={currentOi.totals.total_ce.toLocaleString()} />
-            <Metric label="Total PE OI" value={currentOi.totals.total_pe.toLocaleString()} />
-            <Metric label="PCR" value={pcrLabel(currentOi.totals.pcr)} />
-          </div>
+          {/* Spot + Metrics row */}
+          <div className="flex flex-wrap items-stretch gap-3 mt-4 mb-4">
+            {/* Spot price */}
+            <div className="bg-gradient-to-r from-[var(--gold)]/15 to-transparent border border-[var(--gold)]/30 rounded-lg px-4 py-2.5 flex items-center gap-2">
+              <span className="text-[var(--gold)] text-xs font-semibold uppercase tracking-wide">Spot</span>
+              <span className="text-[var(--gold)] text-lg font-bold tabular-nums">
+                ₹{Number(currentOi.spot).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
 
-          {/* Info bar */}
-          <div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
-            <span className="bg-[var(--gold)] text-black px-3 py-1 rounded-xl font-bold text-sm">
-              SPOT: ₹{Number(currentOi.spot).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
-            <span className="text-[var(--text-muted)]">Last update: {currentOi.last_update}</span>
-            {currentOi.old_date && (
-              <span className="text-[var(--text-muted)]">Old = close of {currentOi.old_date}</span>
-            )}
+            {/* CE OI */}
+            <div className="bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2.5 flex items-center gap-2">
+              <span className="text-[var(--ce-color)] text-xs font-semibold uppercase tracking-wide">CE OI</span>
+              <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_ce.toLocaleString()}</span>
+            </div>
+
+            {/* PE OI */}
+            <div className="bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2.5 flex items-center gap-2">
+              <span className="text-[var(--pe-color)] text-xs font-semibold uppercase tracking-wide">PE OI</span>
+              <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_pe.toLocaleString()}</span>
+            </div>
+
+            {/* PCR */}
+            <div className={`border rounded-lg px-4 py-2.5 flex items-center gap-2 ${pcrStyle(currentOi.totals.pcr)}`}>
+              <span className="text-xs font-semibold uppercase tracking-wide">PCR</span>
+              <span className="text-sm font-bold tabular-nums">{currentOi.totals.pcr.toFixed(2)}</span>
+            </div>
+
+            {/* Last update + old date */}
+            <div className="flex items-center gap-3 ml-auto text-[11px] text-[var(--text-muted)]">
+              {currentOi.last_update && <span>Updated {fmtTime(currentOi.last_update)}</span>}
+              {currentOi.old_date && <span>Prev close: {fmtDate(currentOi.old_date)}</span>}
+            </div>
           </div>
 
           <OITable
@@ -97,7 +128,7 @@ export default function App() {
       ) : currentOi ? (
         <div className="text-center py-12 text-[var(--text-muted)]">
           No live data for <b>{activeTab}</b> yet today.
-          <br />Run <code className="bg-gray-800 px-2 py-1 rounded text-sm">python3 collector.py --live</code>
+          <br />Run <code className="bg-gray-800 px-2 py-1 rounded text-sm mt-2 inline-block">python3 collector.py --live</code>
         </div>
       ) : (
         <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
@@ -114,17 +145,8 @@ export default function App() {
   )
 }
 
-function Metric({ label, value }) {
-  return (
-    <div className="bg-[var(--bg-secondary)] rounded-lg p-3 text-center">
-      <div className="text-xs text-[var(--text-muted)] mb-1">{label}</div>
-      <div className="text-lg font-bold">{value}</div>
-    </div>
-  )
-}
-
-function pcrLabel(pcr) {
-  if (pcr > 1.2) return `${pcr.toFixed(2)} 🟢 Bullish`
-  if (pcr < 0.8) return `${pcr.toFixed(2)} 🔴 Bearish`
-  return `${pcr.toFixed(2)} ⚪ Neutral`
+function pcrStyle(pcr) {
+  if (pcr > 1.2) return 'bg-[var(--green)]/10 border-[var(--green)]/30 text-[var(--green)]'
+  if (pcr < 0.8) return 'bg-[var(--red)]/10 border-[var(--red)]/30 text-[var(--red)]'
+  return 'bg-[var(--bg-secondary)] border-gray-700/50 text-[var(--text-primary)]'
 }

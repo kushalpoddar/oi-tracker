@@ -1,5 +1,12 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts'
 
+function fmtDate(d) {
+  if (!d) return ''
+  const parts = d.split('-')
+  if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
+  return d
+}
+
 function formatContracts(val) {
   const abs = Math.abs(val)
   if (abs >= 100000) return `${(val / 100000).toFixed(1)}L`
@@ -26,7 +33,7 @@ export default function ParticipantChart({ data }) {
   return (
     <div className="mb-4">
       <div className="text-center text-sm text-[var(--text-muted)] mb-2">
-        📅 {data.trade_date} &nbsp;&nbsp; <b>Gross Open Interest — Index Options</b>
+        📅 {fmtDate(data.trade_date)} &nbsp;&nbsp; <b>Gross Open Interest — Index Options</b>
       </div>
 
       <ResponsiveContainer width="100%" height={280}>

@@ -1,3 +1,5 @@
+import { useEffect, useRef, useCallback } from 'react'
+
 function pctTag(pct) {
   if (pct === 0) return null
   const arrow = pct > 0 ? '▲' : '▼'
@@ -21,64 +23,136 @@ function fmtChg(val) {
   return val > 0 ? `+${val.toLocaleString()}` : val.toLocaleString()
 }
 
-export default function OITable({ symbol, rows, onStrikeClick, selectedStrike }) {
+export default function OITable({ rows, onStrikeClick, selectedStrike }) {
+  const leftRef = useRef(null)
+  const rightRef = useRef(null)
+  const ceTableRef = useRef(null)
+  const strikeTableRef = useRef(null)
+  const peTableRef = useRef(null)
+
+  const syncHeights = useCallback(() => {
+    const tables = [ceTableRef.current, strikeTableRef.current, peTableRef.current]
+    if (tables.some(t => !t)) return
+
+    const rowSets = tables.map(t => Array.from(t.querySelectorAll('tr')))
+    const rowCount = Math.min(...rowSets.map(r => r.length))
+
+    // Reset heights first
+    rowSets.forEach(set => set.forEach(tr => { tr.style.height = '' }))
+
+    for (let i = 0; i < rowCount; i++) {
+      const maxH = Math.max(...rowSets.map(set => set[i].getBoundingClientRect().height))
+      rowSets.forEach(set => { set[i].style.height = `${maxH}px` })
+    }
+  }, [])
+
+  useEffect(() => {
+    syncHeights()
+    if (leftRef.current) leftRef.current.scrollLeft = leftRef.current.scrollWidth
+    if (rightRef.current) rightRef.current.scrollLeft = 0
+  }, [rows, syncHeights])
+
   return (
-    <div className="overflow-x-auto -mx-4 px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <table className="w-full min-w-[800px] border-collapse font-mono text-[13px] whitespace-nowrap">
-        <thead>
-          <tr>
-            <th colSpan={4} className="text-center text-sm font-bold py-1.5 border-b-2 border-gray-600 text-[var(--ce-color)]">
-              CALL (CE)
-            </th>
-            <th className="text-center text-sm font-bold py-1.5 border-b-2 border-gray-600 text-[var(--gold)] bg-[#1a1a2e]">⬍</th>
-            <th colSpan={4} className="text-center text-sm font-bold py-1.5 border-b-2 border-gray-600 text-[var(--pe-color)]">
-              PUT (PE)
-            </th>
-          </tr>
-          <tr className="text-xs font-semibold text-[var(--text-muted)] border-b border-gray-700">
-            {['Vol', 'Chg OI', 'OI', 'Live'].map(h => <th key={`ce-${h}`} className="py-1 px-2 text-center">{h}</th>)}
-            <th className="py-1 px-2 text-center text-[var(--gold)] bg-[#1a1a2e]">STRIKE</th>
-            {['Live', 'OI', 'Chg OI', 'Vol'].map(h => <th key={`pe-${h}`} className="py-1 px-2 text-center">{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => {
-            const isSelected = selectedStrike === row.strike
-            return (
+    <div className="flex font-mono text-[13px]">
+      {/* CE side */}
+      <div ref={leftRef} className="flex-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table ref={ceTableRef} className="border-collapse whitespace-nowrap ml-auto">
+          <thead>
+            <tr className="bg-[#2a1520]">
+              <th colSpan={4} className="text-center text-sm font-bold py-2 text-[var(--ce-color)] tracking-wider uppercase">
+                CALL (CE)
+              </th>
+            </tr>
+            <tr className="bg-[#1e1215] border-b border-[var(--ce-color)]/30">
+              {['Vol', 'Chg OI', 'OI', 'Live'].map(h => <th key={h} className="py-1.5 px-1 text-center text-[11px] font-semibold text-[var(--ce-color)] opacity-70 uppercase tracking-wide">{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
               <tr
                 key={row.strike}
-                className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/20' : ''} ${isSelected ? 'bg-blue-900/30' : ''}`}
+                className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/20' : ''} ${selectedStrike === row.strike ? 'bg-blue-900/30' : ''}`}
               >
-                <td className="text-center px-2 py-2.5 text-[var(--ce-color)] opacity-50">{row.ce_volume.toLocaleString()}</td>
-                <td className={`text-center px-2 py-2.5 ${chgColor(row.ce_chg_oi)}`}>{fmtChg(row.ce_chg_oi)}</td>
-                <td className="text-center px-2 py-2.5 text-[var(--ce-color)] opacity-50">{row.ce_old.toLocaleString()}</td>
-                <td className="text-center px-2 py-2.5">
+                <td className="text-center px-1 py-1.5 text-[var(--ce-color)] opacity-50">{row.ce_volume.toLocaleString()}</td>
+                <td className={`text-center px-1 py-1.5 ${chgColor(row.ce_chg_oi)}`}>{fmtChg(row.ce_chg_oi)}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--ce-color)] opacity-50">{row.ce_old.toLocaleString()}</td>
+                <td className="text-center px-1 py-1.5">
                   <button
                     onClick={() => onStrikeClick(row.strike)}
                     className={`${liveColor(row.ce_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
                   >
-                    {row.ce_live.toLocaleString()}{pctTag(row.ce_pct)}
+                    {row.ce_live.toLocaleString()}
+                    <div className="text-[11px]">{pctTag(row.ce_pct) || '\u00A0'}</div>
                   </button>
                 </td>
-                <td className={`text-center px-2 py-2.5 font-semibold bg-[#1a1a2e] ${row.is_atm ? 'text-[var(--gold)] font-extrabold text-[15px]' : 'text-[var(--text-primary)]'}`}>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Strike center */}
+      <div className="shrink-0 bg-[#1a1a2e] border-x border-gray-700">
+        <table ref={strikeTableRef} className="border-collapse whitespace-nowrap">
+          <thead>
+            <tr className="bg-[#1a1a2e]">
+              <th className="text-center text-sm font-bold py-2 text-[var(--gold)] px-3 tracking-wider">⬍</th>
+            </tr>
+            <tr className="bg-[#141422] border-b border-[var(--gold)]/30">
+              <th className="py-1.5 px-3 text-center text-[11px] font-semibold text-[var(--gold)] opacity-80 uppercase tracking-wide">STRIKE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr
+                key={row.strike}
+                className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/30' : ''}`}
+              >
+                <td className={`text-center px-3 py-1.5 font-semibold ${row.is_atm ? 'text-[var(--gold)] font-extrabold text-[15px]' : 'text-[var(--text-primary)]'}`}>
                   {row.strike.toLocaleString()}
                 </td>
-                <td className="text-center px-2 py-2.5">
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* PE side */}
+      <div ref={rightRef} className="flex-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table ref={peTableRef} className="border-collapse whitespace-nowrap mr-auto">
+          <thead>
+            <tr className="bg-[#152a1a]">
+              <th colSpan={4} className="text-center text-sm font-bold py-2 text-[var(--pe-color)] tracking-wider uppercase">
+                PUT (PE)
+              </th>
+            </tr>
+            <tr className="bg-[#121e15] border-b border-[var(--pe-color)]/30">
+              {['Live', 'OI', 'Chg OI', 'Vol'].map(h => <th key={h} className="py-1.5 px-1 text-center text-[11px] font-semibold text-[var(--pe-color)] opacity-70 uppercase tracking-wide">{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr
+                key={row.strike}
+                className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/20' : ''} ${selectedStrike === row.strike ? 'bg-blue-900/30' : ''}`}
+              >
+                <td className="text-center px-1 py-1.5">
                   <button
                     onClick={() => onStrikeClick(row.strike)}
                     className={`${liveColor(row.pe_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
                   >
-                    {row.pe_live.toLocaleString()}{pctTag(row.pe_pct)}
+                    {row.pe_live.toLocaleString()}
+                    <div className="text-[11px]">{pctTag(row.pe_pct) || '\u00A0'}</div>
                   </button>
                 </td>
-                <td className="text-center px-2 py-2.5 text-[var(--pe-color)] opacity-50">{row.pe_old.toLocaleString()}</td>
-                <td className={`text-center px-2 py-2.5 ${chgColor(row.pe_chg_oi)}`}>{fmtChg(row.pe_chg_oi)}</td>
-                <td className="text-center px-2 py-2.5 text-[var(--pe-color)] opacity-50">{row.pe_volume.toLocaleString()}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_old.toLocaleString()}</td>
+                <td className={`text-center px-1 py-1.5 ${chgColor(row.pe_chg_oi)}`}>{fmtChg(row.pe_chg_oi)}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_volume.toLocaleString()}</td>
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
