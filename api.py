@@ -180,18 +180,17 @@ def get_participants():
     categories = ["fii", "dii", "pro", "client"]
     participants = []
     for cat in categories:
-        long_val = short_val = 0
-        if ce_row:
-            long_val += int(ce_row.get(f"{cat}_long", 0))
-            short_val += int(ce_row.get(f"{cat}_short", 0))
-        if pe_row:
-            long_val += int(pe_row.get(f"{cat}_long", 0))
-            short_val += int(pe_row.get(f"{cat}_short", 0))
+        ce_long = int(ce_row.get(f"{cat}_long", 0)) if ce_row else 0
+        ce_short = int(ce_row.get(f"{cat}_short", 0)) if ce_row else 0
+        pe_long = int(pe_row.get(f"{cat}_long", 0)) if pe_row else 0
+        pe_short = int(pe_row.get(f"{cat}_short", 0)) if pe_row else 0
         participants.append({
             "name": cat.upper() if cat in ("fii", "dii") else cat.capitalize(),
-            "long": long_val,
-            "short": short_val,
-            "net": long_val - short_val,
+            "ce_long": ce_long, "ce_short": ce_short,
+            "pe_long": pe_long, "pe_short": pe_short,
+            "long": ce_long + pe_long,
+            "short": ce_short + pe_short,
+            "net": (ce_long + pe_long) - (ce_short + pe_short),
         })
 
     return {"available": True, "data": participants, "trade_date": trade_date}

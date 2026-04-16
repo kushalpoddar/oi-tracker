@@ -56,7 +56,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
     <div className="flex font-mono text-[13px]">
       {/* CE side */}
       <div ref={leftRef} className="flex-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <table ref={ceTableRef} className="border-collapse whitespace-nowrap ml-auto">
+        <table ref={ceTableRef} className="w-full border-collapse whitespace-nowrap">
           <thead>
             <tr className="bg-[#2a1520]">
               <th colSpan={4} className="text-center text-sm font-bold py-2 text-[var(--ce-color)] tracking-wider uppercase">
@@ -119,7 +119,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
 
       {/* PE side */}
       <div ref={rightRef} className="flex-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <table ref={peTableRef} className="border-collapse whitespace-nowrap mr-auto">
+        <table ref={peTableRef} className="w-full border-collapse whitespace-nowrap">
           <thead>
             <tr className="bg-[#152a1a]">
               <th colSpan={4} className="text-center text-sm font-bold py-2 text-[var(--pe-color)] tracking-wider uppercase">

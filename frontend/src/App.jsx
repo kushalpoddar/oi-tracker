@@ -56,7 +56,7 @@ export default function App() {
   const currentOi = oiData[activeTab]
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-4">
+    <div className="px-2 sm:px-4 py-3">
       <StatusBar status={status} onRefresh={fetchAll} />
 
       <ParticipantChart data={participants} />
@@ -106,7 +106,7 @@ export default function App() {
             </div>
 
             {/* PCR */}
-            <div className={`border rounded-lg px-4 py-2.5 flex items-center gap-2 ${pcrStyle(currentOi.totals.pcr)}`}>
+            <div className="rounded-lg px-4 py-2.5 flex items-center gap-2" style={pcrStyle(currentOi.totals.pcr)}>
               <span className="text-xs font-semibold uppercase tracking-wide">PCR</span>
               <span className="text-sm font-bold tabular-nums">{currentOi.totals.pcr.toFixed(2)}</span>
             </div>
@@ -146,7 +146,7 @@ export default function App() {
 }
 
 function pcrStyle(pcr) {
-  if (pcr > 1.2) return 'bg-[var(--green)]/10 border-[var(--green)]/30 text-[var(--green)]'
-  if (pcr < 0.8) return 'bg-[var(--red)]/10 border-[var(--red)]/30 text-[var(--red)]'
-  return 'bg-[var(--bg-secondary)] border-gray-700/50 text-[var(--text-primary)]'
+  if (pcr > 1.2) return { background: 'rgba(102,187,106,0.12)', border: '1px solid rgba(102,187,106,0.35)', color: 'var(--green)' }
+  if (pcr < 0.8) return { background: 'rgba(239,83,80,0.12)', border: '1px solid rgba(239,83,80,0.35)', color: 'var(--red)' }
+  return { background: 'var(--bg-secondary)', border: '1px solid rgba(107,114,128,0.5)', color: 'var(--text-primary)' }
 }
