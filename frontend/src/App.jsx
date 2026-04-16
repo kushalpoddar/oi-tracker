@@ -83,38 +83,35 @@ export default function App() {
 
       {currentOi && currentOi.rows.length > 0 ? (
         <>
-          {/* Spot + Metrics row */}
-          <div className="flex flex-wrap items-stretch gap-3 mt-4 mb-4">
-            {/* Spot price */}
-            <div className="bg-gradient-to-r from-[var(--gold)]/15 to-transparent border border-[var(--gold)]/30 rounded-lg px-4 py-2.5 flex items-center gap-2">
+          {/* Spot price — full width */}
+          <div className="flex items-center justify-between mt-4 mb-2"
+            style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.25)', borderRadius: 8, padding: '10px 16px' }}
+          >
+            <div className="flex items-center gap-2">
               <span className="text-[var(--gold)] text-xs font-semibold uppercase tracking-wide">Spot</span>
-              <span className="text-[var(--gold)] text-lg font-bold tabular-nums">
+              <span className="text-[var(--gold)] text-xl font-bold tabular-nums">
                 ₹{Number(currentOi.spot).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
+            <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+              {currentOi.last_update && <span>Updated {fmtTime(currentOi.last_update)}</span>}
+              {currentOi.old_date && <span>Prev close: {fmtDate(currentOi.old_date)}</span>}
+            </div>
+          </div>
 
-            {/* CE OI */}
-            <div className="bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2.5 flex items-center gap-2">
+          {/* CE OI, PE OI, PCR */}
+          <div className="flex gap-3 mb-4">
+            <div className="flex-1 bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2 flex items-center justify-center gap-2">
               <span className="text-[var(--ce-color)] text-xs font-semibold uppercase tracking-wide">CE OI</span>
               <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_ce.toLocaleString()}</span>
             </div>
-
-            {/* PE OI */}
-            <div className="bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2.5 flex items-center gap-2">
+            <div className="flex-1 bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2 flex items-center justify-center gap-2">
               <span className="text-[var(--pe-color)] text-xs font-semibold uppercase tracking-wide">PE OI</span>
               <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_pe.toLocaleString()}</span>
             </div>
-
-            {/* PCR */}
-            <div className="rounded-lg px-4 py-2.5 flex items-center gap-2" style={pcrStyle(currentOi.totals.pcr)}>
+            <div className="flex-1 rounded-lg px-4 py-2 flex items-center justify-center gap-2" style={pcrStyle(currentOi.totals.pcr)}>
               <span className="text-xs font-semibold uppercase tracking-wide">PCR</span>
               <span className="text-sm font-bold tabular-nums">{currentOi.totals.pcr.toFixed(2)}</span>
-            </div>
-
-            {/* Last update + old date */}
-            <div className="flex items-center gap-3 ml-auto text-[11px] text-[var(--text-muted)]">
-              {currentOi.last_update && <span>Updated {fmtTime(currentOi.last_update)}</span>}
-              {currentOi.old_date && <span>Prev close: {fmtDate(currentOi.old_date)}</span>}
             </div>
           </div>
 

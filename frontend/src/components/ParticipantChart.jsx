@@ -25,10 +25,10 @@ export default function ParticipantChart({ data }) {
 
   const chartData = data.data.map(p => ({
     name: p.name,
-    'CE Long': p.ce_long,
-    'CE Short': p.ce_short,
-    'PE Long': p.pe_long,
-    'PE Short': p.pe_short,
+    'Call Long': p.ce_long,
+    'Call Short': p.ce_short,
+    'Put Long': p.pe_long,
+    'Put Short': p.pe_short,
   }))
 
   return (
@@ -47,17 +47,17 @@ export default function ParticipantChart({ data }) {
             formatter={(v) => v.toLocaleString()}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="CE Long" fill="#ef9a9a" radius={[0, 3, 3, 0]}>
-            <LabelList dataKey="CE Long" position="right" formatter={formatContracts} style={{ fill: '#ef9a9a', fontSize: 10, fontWeight: 600 }} />
+          <Bar dataKey="Call Long" fill="#ef9a9a" radius={[0, 3, 3, 0]}>
+            <LabelList dataKey="Call Long" position="right" formatter={formatContracts} style={{ fill: '#ef9a9a', fontSize: 10, fontWeight: 600 }} />
           </Bar>
-          <Bar dataKey="CE Short" fill="#c62828" radius={[0, 3, 3, 0]}>
-            <LabelList dataKey="CE Short" position="right" formatter={formatContracts} style={{ fill: '#c62828', fontSize: 10, fontWeight: 600 }} />
+          <Bar dataKey="Call Short" fill="#c62828" radius={[0, 3, 3, 0]}>
+            <LabelList dataKey="Call Short" position="right" formatter={formatContracts} style={{ fill: '#c62828', fontSize: 10, fontWeight: 600 }} />
           </Bar>
-          <Bar dataKey="PE Long" fill="#a5d6a7" radius={[0, 3, 3, 0]}>
-            <LabelList dataKey="PE Long" position="right" formatter={formatContracts} style={{ fill: '#a5d6a7', fontSize: 10, fontWeight: 600 }} />
+          <Bar dataKey="Put Long" fill="#a5d6a7" radius={[0, 3, 3, 0]}>
+            <LabelList dataKey="Put Long" position="right" formatter={formatContracts} style={{ fill: '#a5d6a7', fontSize: 10, fontWeight: 600 }} />
           </Bar>
-          <Bar dataKey="PE Short" fill="#2e7d32" radius={[0, 3, 3, 0]}>
-            <LabelList dataKey="PE Short" position="right" formatter={formatContracts} style={{ fill: '#2e7d32', fontSize: 10, fontWeight: 600 }} />
+          <Bar dataKey="Put Short" fill="#2e7d32" radius={[0, 3, 3, 0]}>
+            <LabelList dataKey="Put Short" position="right" formatter={formatContracts} style={{ fill: '#2e7d32', fontSize: 10, fontWeight: 600 }} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
