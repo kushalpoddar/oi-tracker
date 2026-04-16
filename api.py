@@ -177,7 +177,7 @@ def get_participants():
         elif "PUT" in inst and "INDEX" in inst:
             pe_row = dict(r)
 
-    categories = ["client", "fii", "dii", "pro"]
+    categories = ["fii", "dii", "pro", "client"]
     participants = []
     for cat in categories:
         long_val = short_val = 0

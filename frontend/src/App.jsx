@@ -93,14 +93,6 @@ export default function App() {
             onStrikeClick={(strike) => setSelectedStrike(strike)}
             selectedStrike={selectedStrike}
           />
-
-          {selectedStrike && (
-            <StrikeChart
-              symbol={activeTab}
-              strike={selectedStrike}
-              onClose={() => setSelectedStrike(null)}
-            />
-          )}
         </>
       ) : currentOi ? (
         <div className="text-center py-12 text-[var(--text-muted)]">
@@ -109,6 +101,14 @@ export default function App() {
         </div>
       ) : (
         <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
+      )}
+
+      {selectedStrike && (
+        <StrikeChart
+          symbol={activeTab}
+          strike={selectedStrike}
+          onClose={() => setSelectedStrike(null)}
+        />
       )}
     </div>
   )
