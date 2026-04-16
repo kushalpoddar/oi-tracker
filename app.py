@@ -477,6 +477,20 @@ def render_oi_table(symbol: str, rows: list[dict]):
 
     st.markdown('\n'.join(html), unsafe_allow_html=True)
 
+    # Strike chart picker — replaces the old clickable Live cells
+    strikes = [r["strike"] for r in rows]
+    atm = next((r["strike"] for r in rows if r["is_atm"]), strikes[0])
+    atm_idx = strikes.index(atm) if atm in strikes else 0
+
+    pick = st.selectbox(
+        "📈 View intraday OI chart for strike:",
+        strikes,
+        index=atm_idx,
+        key=f"chart_strike_{symbol}",
+    )
+    if pick:
+        render_strike_chart(symbol, float(pick))
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
