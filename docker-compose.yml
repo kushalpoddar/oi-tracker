@@ -3,7 +3,7 @@ services:
     build: .
     container_name: oi-tracker
     ports:
-      - "8501:8501"
+      - "8501:8000"
     volumes:
       - oi-data:/app/data
     environment:

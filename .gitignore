@@ -27,5 +27,12 @@ Thumbs.db
 *.swp
 *.swo
 
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+
+# Backtest results
+backtest_*.json
+
 # Environment variables
 .env

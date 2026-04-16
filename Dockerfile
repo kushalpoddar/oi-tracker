@@ -1,3 +1,10 @@
+FROM node:25-slim AS frontend-build
+WORKDIR /build
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 ENV TZ=Asia/Kolkata \
@@ -17,11 +24,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY --from=frontend-build /build/dist /app/frontend/dist
 RUN mkdir -p /app/data
 
-EXPOSE 8501
+EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl -f http://localhost:8000/api/status || exit 1
 
 ENTRYPOINT ["bash", "entrypoint.sh"]

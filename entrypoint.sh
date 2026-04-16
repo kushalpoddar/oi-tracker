@@ -29,10 +29,7 @@ crontab /etc/cron.d/oi-collector
 # Start cron daemon in background
 cron
 
-echo "$(date) — Cron started, launching Streamlit..."
+echo "$(date) — Cron started, launching FastAPI..."
 
-# Run Streamlit in foreground
-exec streamlit run app.py \
-    --server.port=8501 \
-    --server.address=0.0.0.0 \
-    --server.headless=true
+# Run FastAPI (serves API + React static build)
+exec uvicorn api:app --host 0.0.0.0 --port 8000

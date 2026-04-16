@@ -1,6 +1,6 @@
-streamlit>=1.35.0
+fastapi>=0.115
+uvicorn>=0.30
 pandas==2.2.3
-altair>=5.0
 pnsea>=1.1
 nsepython>=2.10
 pytz>=2024.1
