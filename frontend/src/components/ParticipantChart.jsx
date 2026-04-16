@@ -30,7 +30,7 @@ export default function ParticipantChart({ data }) {
       </div>
 
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={chartData} barCategoryGap="30%">
+        <BarChart data={chartData} barCategoryGap="10%">
           <XAxis dataKey="name" tick={{ fill: '#e0e0e0', fontSize: 12 }} />
           <YAxis tick={{ fill: '#aaa', fontSize: 11 }} tickFormatter={v => formatContracts(v)} />
           <Tooltip
@@ -47,17 +47,6 @@ export default function ParticipantChart({ data }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-
-      {/* Net row inline below x-axis labels */}
-      <div className="grid grid-cols-4 gap-2 -mt-1">
-        {data.data.map(p => (
-          <div key={p.name} className="text-center">
-            <span className={`text-xs font-bold ${p.net > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
-              Net: {formatContracts(p.net)}
-            </span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
