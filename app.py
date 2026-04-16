@@ -36,53 +36,57 @@ st.markdown("""
         padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 14px;
     }
 
-    /* Mobile-friendly: prevent column stacking, allow horizontal scroll */
-    .oi-scroll-wrap {
+    /* OI table: horizontally scrollable on mobile, no wrapping */
+    .oi-table-wrap {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        margin-bottom: 1rem;
     }
-    .oi-scroll-wrap [data-testid="stHorizontalBlock"] {
-        min-width: 800px;
-        flex-wrap: nowrap !important;
-    }
-
-    /* Live OI buttons styled as table cells */
-    .stButton > button {
-        font-family: 'SF Mono', 'Fira Code', Consolas, monospace !important;
-        font-size: 13px !important;
-        padding: 6px 0 !important;
-        min-height: 0 !important;
-        height: auto !important;
-        border: 1px solid #333 !important;
-        background: transparent !important;
-        color: #90caf9 !important;
-        transition: background 0.15s;
-        width: 100% !important;
-        white-space: nowrap !important;
-    }
-    .stButton > button:hover {
-        background: #1a2744 !important;
-        border-color: #90caf9 !important;
-        color: #fff !important;
-    }
-
-    /* Tighten vertical spacing between rows */
-    [data-testid="stVerticalBlock"] > div { margin-bottom: -0.5rem; }
-    [data-testid="column"] > div { display: flex; align-items: center; justify-content: center; }
-
-    /* Table group headers */
-    .tbl-group {
-        text-align: center; font-size: 14px; font-weight: 700;
-        padding: 6px 0; border-bottom: 2px solid #444;
-    }
-    .tbl-sub {
-        text-align: center; font-size: 12px; font-weight: 600;
-        padding: 4px 0; color: #aaa; border-bottom: 1px solid #333;
+    .oi-table {
+        border-collapse: collapse;
         white-space: nowrap;
+        width: 100%;
+        min-width: 800px;
+        font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+        font-size: 13px;
     }
-    .tbl-cell {
-        text-align: center; padding: 6px 0; white-space: nowrap;
-        font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 13px;
+    .oi-table th {
+        position: sticky; top: 0;
+        padding: 6px 10px;
+        border-bottom: 2px solid #444;
+        font-weight: 700;
+        text-align: center;
+        background: #0e1117;
+    }
+    .oi-table th.group-ce { color: #ef9a9a; }
+    .oi-table th.group-pe { color: #a5d6a7; }
+    .oi-table th.group-strike { color: #ffd700; }
+    .oi-table th.sub {
+        font-size: 12px; font-weight: 600; color: #aaa;
+        border-bottom: 1px solid #333;
+    }
+    .oi-table td {
+        padding: 5px 10px;
+        text-align: center;
+        border-bottom: 1px solid #1a1a1a;
+    }
+    .oi-table tr.atm-row td { background: #2a2a00; }
+    .oi-table .ce { color: #ef9a9a; }
+    .oi-table .pe { color: #a5d6a7; }
+    .oi-table .dim { opacity: 0.5; }
+    .oi-table .strike-cell { color: #e0e0e0; font-weight: 600; }
+    .oi-table .strike-atm { color: #ffd700; font-weight: 800; font-size: 15px; }
+    .oi-table .up { color: #66BB6A; }
+    .oi-table .dn { color: #ef5350; }
+    .oi-table .zr { color: #666; }
+    .oi-table .live-val a {
+        color: #90caf9;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .oi-table .live-val a:hover {
+        color: #fff;
+        text-decoration: underline;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -437,83 +441,67 @@ def _chg_fmt(val: int) -> str:
     return f"{val:,}"
 
 
-def _chg_color(val: int) -> str:
-    if val > 0: return "#66BB6A"
-    if val < 0: return "#ef5350"
-    return "#666"
+def _chg_cls(val: int) -> str:
+    if val > 0: return "up"
+    if val < 0: return "dn"
+    return "zr"
 
 
 def render_oi_table(symbol: str, rows: list[dict]):
-    """Render the OI table with clickable Live cells. Wrapped in scrollable div for mobile."""
+    """Render OI as an HTML table (mobile-friendly) + strike picker for charts."""
 
-    st.markdown('<div class="oi-scroll-wrap">', unsafe_allow_html=True)
+    html = ['<div class="oi-table-wrap"><table class="oi-table">']
 
-    col_weights = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    # Group headers
+    html.append('<thead><tr>')
+    html.append('<th class="group-ce" colspan="4">CALL (CE)</th>')
+    html.append('<th class="group-strike">⬍</th>')
+    html.append('<th class="group-pe" colspan="4">PUT (PE)</th>')
+    html.append('</tr><tr>')
+    for h in ["Vol", "Chg OI", "OI", "Live"]:
+        html.append(f'<th class="sub">{h}</th>')
+    html.append('<th class="sub" style="color:#ffd700">STRIKE</th>')
+    for h in ["Live", "OI", "Chg OI", "Vol"]:
+        html.append(f'<th class="sub">{h}</th>')
+    html.append('</tr></thead>')
 
-    # ── Level-1 group headers: CALL | STRIKE | PUT ──
-    g1, g2, g3 = st.columns([4, 1, 4])
-    g1.markdown('<div class="tbl-group" style="color:#ef9a9a">CALL (CE)</div>', unsafe_allow_html=True)
-    g2.markdown('<div class="tbl-group" style="color:#ffd700">⬍</div>', unsafe_allow_html=True)
-    g3.markdown('<div class="tbl-group" style="color:#a5d6a7">PUT (PE)</div>', unsafe_allow_html=True)
-
-    # ── Level-2 sub-headers ──
-    cols_h = st.columns(col_weights)
-    headers = ["Vol", "Chg OI", "OI", "Live 🔍", "STRIKE", "Live 🔍", "OI", "Chg OI", "Vol"]
-    header_colors = ["#888", "#888", "#888", "#aaa", "#ffd700", "#aaa", "#888", "#888", "#888"]
-    for i, h in enumerate(headers):
-        cols_h[i].markdown(f'<div class="tbl-sub" style="color:{header_colors[i]}">{h}</div>', unsafe_allow_html=True)
-
-    # ── Data rows ──
+    # Data rows
+    html.append('<tbody>')
     for row in rows:
         s = row["strike"]
-        atm_bg = "background-color:#2a2a00;" if row["is_atm"] else ""
+        tr_cls = ' class="atm-row"' if row["is_atm"] else ""
+        strike_cls = "strike-atm" if row["is_atm"] else "strike-cell"
+        ce_tag = _pct_tag(row["ce_pct"])
+        pe_tag = _pct_tag(row["pe_pct"])
 
-        c = st.columns(col_weights)
+        html.append(f'<tr{tr_cls}>')
+        html.append(f'<td class="ce dim">{row["ce_volume"]:,}</td>')
+        html.append(f'<td class="{_chg_cls(row["ce_chg_oi"])}">{_chg_fmt(row["ce_chg_oi"])}</td>')
+        html.append(f'<td class="ce dim">{row["ce_old"]:,}</td>')
+        html.append(f'<td class="live-val"><a href="?chart={symbol}_{s}#oi-chart">{row["ce_live"]:,} {ce_tag}</a></td>')
+        html.append(f'<td class="{strike_cls}">{s:,}</td>')
+        html.append(f'<td class="live-val"><a href="?chart={symbol}_{s}#oi-chart">{row["pe_live"]:,} {pe_tag}</a></td>')
+        html.append(f'<td class="pe dim">{row["pe_old"]:,}</td>')
+        html.append(f'<td class="{_chg_cls(row["pe_chg_oi"])}">{_chg_fmt(row["pe_chg_oi"])}</td>')
+        html.append(f'<td class="pe dim">{row["pe_volume"]:,}</td>')
+        html.append('</tr>')
 
-        # CE Volume
-        with c[0]:
-            st.markdown(f'<div class="tbl-cell" style="color:#ef9a9a; opacity:0.5; {atm_bg}">{row["ce_volume"]:,}</div>', unsafe_allow_html=True)
-        # CE Change in OI
-        with c[1]:
-            chg = row["ce_chg_oi"]
-            st.markdown(f'<div class="tbl-cell" style="color:{_chg_color(chg)}; {atm_bg}">{_chg_fmt(chg)}</div>', unsafe_allow_html=True)
-        # CE OI (old/closing)
-        with c[2]:
-            st.markdown(f'<div class="tbl-cell" style="color:#ef9a9a; opacity:0.5; {atm_bg}">{row["ce_old"]:,}</div>', unsafe_allow_html=True)
-        # CE Live OI (clickable)
-        with c[3]:
-            ce_tag = _pct_tag(row["ce_pct"])
-            if st.button(f'{row["ce_live"]:,}  {ce_tag}', key=f"ce_{symbol}_{s}", use_container_width=True):
-                show_chart_dialog(symbol, s)
-        # Strike
-        with c[4]:
-            clr = "#ffd700" if row["is_atm"] else "#e0e0e0"
-            wt = "800" if row["is_atm"] else "600"
-            sz = "15px" if row["is_atm"] else "13px"
-            st.markdown(f'<div class="tbl-cell" style="color:{clr}; font-weight:{wt}; font-size:{sz}; {atm_bg}">{s:,}</div>', unsafe_allow_html=True)
-        # PE Live OI (clickable)
-        with c[5]:
-            pe_tag = _pct_tag(row["pe_pct"])
-            if st.button(f'{row["pe_live"]:,}  {pe_tag}', key=f"pe_{symbol}_{s}", use_container_width=True):
-                show_chart_dialog(symbol, s)
-        # PE OI (old/closing)
-        with c[6]:
-            st.markdown(f'<div class="tbl-cell" style="color:#a5d6a7; opacity:0.5; {atm_bg}">{row["pe_old"]:,}</div>', unsafe_allow_html=True)
-        # PE Change in OI
-        with c[7]:
-            chg = row["pe_chg_oi"]
-            st.markdown(f'<div class="tbl-cell" style="color:{_chg_color(chg)}; {atm_bg}">{_chg_fmt(chg)}</div>', unsafe_allow_html=True)
-        # PE Volume
-        with c[8]:
-            st.markdown(f'<div class="tbl-cell" style="color:#a5d6a7; opacity:0.5; {atm_bg}">{row["pe_volume"]:,}</div>', unsafe_allow_html=True)
+    html.append('</tbody></table></div>')
+    st.markdown('\n'.join(html), unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-@st.dialog("📈 OI Intraday Chart", width="large")  # type: ignore[attr-defined]
-def show_chart_dialog(symbol: str, strike: int):
-    """Modal dialog showing CE + PE OI time-series for a strike."""
-    render_strike_chart(symbol, float(strike))
+    # Show chart if this symbol's strike was clicked (via query param)
+    chart_param = st.query_params.get("chart", "")
+    if chart_param.startswith(f"{symbol}_"):
+        try:
+            clicked_strike = int(chart_param.split("_", 1)[1])
+            st.markdown('<div id="oi-chart"></div>', unsafe_allow_html=True)
+            st.markdown(f"### 📈 OI Chart — {symbol} {clicked_strike:,}")
+            render_strike_chart(symbol, float(clicked_strike))
+            if st.button("✕ Close chart", key=f"close_chart_{symbol}"):
+                st.query_params.clear()
+                st.rerun()
+        except (ValueError, IndexError):
+            pass
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
