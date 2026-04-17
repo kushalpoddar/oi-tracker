@@ -103,12 +103,19 @@ def get_oi_table(symbol: str):
         pe_live = int(lr["pe_oi"] or 0)
         ce_pct = ((ce_live - ce_old) / ce_old * 100) if ce_old else 0.0
         pe_pct = ((pe_live - pe_old) / pe_old * 100) if pe_old else 0.0
+        ce_ltp = float(lr["ce_ltp"] or 0)
+        pe_ltp = float(lr["pe_ltp"] or 0)
+        lot = 25 if symbol == "NIFTY" else 15
+        ce_val_cr = round(ce_live * lot * ce_ltp / 1e7, 2)
+        pe_val_cr = round(pe_live * lot * pe_ltp / 1e7, 2)
         rows.append({
             "strike": int(s),
             "ce_old": ce_old, "ce_live": ce_live, "ce_pct": round(ce_pct, 1),
             "ce_chg_oi": int(lr["ce_chg_oi"] or 0), "ce_volume": int(lr["ce_volume"] or 0),
+            "ce_ltp": round(ce_ltp, 2), "ce_val_cr": ce_val_cr,
             "pe_old": pe_old, "pe_live": pe_live, "pe_pct": round(pe_pct, 1),
             "pe_chg_oi": int(lr["pe_chg_oi"] or 0), "pe_volume": int(lr["pe_volume"] or 0),
+            "pe_ltp": round(pe_ltp, 2), "pe_val_cr": pe_val_cr,
             "is_atm": s == atm,
         })
 
