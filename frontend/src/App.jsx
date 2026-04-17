@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import StatusBar from './components/StatusBar'
 import ParticipantChart from './components/ParticipantChart'
 import OITable from './components/OITable'
@@ -41,6 +41,8 @@ export default function App() {
   const [selectedStrike, setSelectedStrike] = useState(null)
   const [expiries, setExpiries] = useState({})
   const [selectedExpiry, setSelectedExpiry] = useState({})
+  const selectedExpiryRef = useRef(selectedExpiry)
+  useEffect(() => { selectedExpiryRef.current = selectedExpiry }, [selectedExpiry])
 
   const fetchExpiries = useCallback(async () => {
     const newExpiries = {}
@@ -59,15 +61,17 @@ export default function App() {
       }
       return next
     })
+    return newExpiries
   }, [])
 
   const fetchOi = useCallback(async () => {
+    const curExpiry = selectedExpiryRef.current
     try {
       const [statusRes, partRes, ...oiResults] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/participants'),
         ...SYMBOLS.map(s => {
-          const exp = selectedExpiry[s]
+          const exp = curExpiry[s]
           const qs = exp ? `?expiry=${encodeURIComponent(exp)}` : ''
           return fetch(`/api/oi/${s}${qs}`)
         }),
@@ -82,7 +86,7 @@ export default function App() {
     } catch (e) {
       console.error('Fetch error:', e)
     }
-  }, [selectedExpiry])
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -95,6 +99,10 @@ export default function App() {
     const interval = setInterval(fetchOi, 30000)
     return () => { active = false; clearInterval(interval) }
   }, [fetchExpiries, fetchOi])
+
+  useEffect(() => {
+    fetchOi()
+  }, [selectedExpiry]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentOi = oiData[activeTab]
   const currentExpiries = expiries[activeTab] || []
