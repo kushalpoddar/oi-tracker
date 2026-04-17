@@ -37,6 +37,7 @@ IST = pytz.timezone("Asia/Kolkata")
 DB_PATH = Path(__file__).parent / "data" / "oi_tracker.db"
 SYMBOLS = ["NIFTY", "BANKNIFTY"]
 ATM_RANGE = 10
+NUM_EXPIRIES = 3  # collect data for nearest N expiries
 
 
 def get_db() -> sqlite3.Connection:
@@ -155,39 +156,53 @@ def collect_live():
     for symbol in SYMBOLS:
         try:
             df, expiries, spot = fetch_oi_for_symbol(symbol)
-            expiry = expiries[0] if expiries else ""
-            df = filter_atm_strikes(df, spot, ATM_RANGE)
+            target_expiries = expiries[:NUM_EXPIRIES] if expiries else [""]
 
-            records = []
-            for _, row in df.iterrows():
-                records.append((
-                    symbol,
-                    float(row["strikePrice"]),
-                    expiry,
-                    ts,
-                    int(row.get("CE_openInterest", 0) or 0),
-                    int(row.get("CE_changeinOpenInterest", 0) or 0),
-                    float(row.get("CE_lastPrice", 0) or 0),
-                    float(row.get("CE_impliedVolatility", 0) or 0),
-                    int(row.get("CE_totalTradedVolume", 0) or 0),
-                    int(row.get("PE_openInterest", 0) or 0),
-                    int(row.get("PE_changeinOpenInterest", 0) or 0),
-                    float(row.get("PE_lastPrice", 0) or 0),
-                    float(row.get("PE_impliedVolatility", 0) or 0),
-                    int(row.get("PE_totalTradedVolume", 0) or 0),
-                    spot,
-                ))
+            total_saved = 0
+            for expiry in target_expiries:
+                try:
+                    if expiry == target_expiries[0]:
+                        exp_df = df
+                    else:
+                        exp_df, _, spot = fetch_oi_for_symbol(symbol, expiry)
 
-            with conn:
-                conn.executemany("""
-                    INSERT INTO live_oi
-                        (symbol, strike, expiry, timestamp,
-                         ce_oi, ce_chg_oi, ce_ltp, ce_iv, ce_volume,
-                         pe_oi, pe_chg_oi, pe_ltp, pe_iv, pe_volume, spot)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """, records)
+                    exp_df = filter_atm_strikes(exp_df, spot, ATM_RANGE)
 
-            logger.info(f"  {symbol}: {len(records)} strikes saved (spot={spot:.0f})")
+                    records = []
+                    for _, row in exp_df.iterrows():
+                        records.append((
+                            symbol,
+                            float(row["strikePrice"]),
+                            expiry,
+                            ts,
+                            int(row.get("CE_openInterest", 0) or 0),
+                            int(row.get("CE_changeinOpenInterest", 0) or 0),
+                            float(row.get("CE_lastPrice", 0) or 0),
+                            float(row.get("CE_impliedVolatility", 0) or 0),
+                            int(row.get("CE_totalTradedVolume", 0) or 0),
+                            int(row.get("PE_openInterest", 0) or 0),
+                            int(row.get("PE_changeinOpenInterest", 0) or 0),
+                            float(row.get("PE_lastPrice", 0) or 0),
+                            float(row.get("PE_impliedVolatility", 0) or 0),
+                            int(row.get("PE_totalTradedVolume", 0) or 0),
+                            spot,
+                        ))
+
+                    with conn:
+                        conn.executemany("""
+                            INSERT INTO live_oi
+                                (symbol, strike, expiry, timestamp,
+                                 ce_oi, ce_chg_oi, ce_ltp, ce_iv, ce_volume,
+                                 pe_oi, pe_chg_oi, pe_ltp, pe_iv, pe_volume, spot)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        """, records)
+
+                    total_saved += len(records)
+
+                except Exception as e:
+                    logger.error(f"  {symbol} expiry {expiry} failed: {e}")
+
+            logger.info(f"  {symbol}: {total_saved} strikes across {len(target_expiries)} expiries (spot={spot:.0f})")
 
         except Exception as e:
             logger.error(f"  {symbol} failed: {e}")
@@ -208,33 +223,44 @@ def collect_closing():
     for symbol in SYMBOLS:
         try:
             df, expiries, spot = fetch_oi_for_symbol(symbol)
-            expiry = expiries[0] if expiries else ""
-            df = filter_atm_strikes(df, spot, ATM_RANGE)
+            target_expiries = expiries[:NUM_EXPIRIES] if expiries else [""]
 
-            for _, row in df.iterrows():
-                with conn:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO closing_oi
-                            (trade_date, symbol, strike, expiry,
-                             ce_oi, ce_chg_oi, ce_ltp, ce_iv,
-                             pe_oi, pe_chg_oi, pe_ltp, pe_iv, spot)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    """, (
-                        today, symbol,
-                        float(row["strikePrice"]),
-                        expiry,
-                        int(row.get("CE_openInterest", 0) or 0),
-                        int(row.get("CE_changeinOpenInterest", 0) or 0),
-                        float(row.get("CE_lastPrice", 0) or 0),
-                        float(row.get("CE_impliedVolatility", 0) or 0),
-                        int(row.get("PE_openInterest", 0) or 0),
-                        int(row.get("PE_changeinOpenInterest", 0) or 0),
-                        float(row.get("PE_lastPrice", 0) or 0),
-                        float(row.get("PE_impliedVolatility", 0) or 0),
-                        spot,
-                    ))
+            for expiry in target_expiries:
+                try:
+                    if expiry == target_expiries[0]:
+                        exp_df = df
+                    else:
+                        exp_df, _, spot = fetch_oi_for_symbol(symbol, expiry)
 
-            logger.info(f"  {symbol}: closing OI saved")
+                    exp_df = filter_atm_strikes(exp_df, spot, ATM_RANGE)
+
+                    for _, row in exp_df.iterrows():
+                        with conn:
+                            conn.execute("""
+                                INSERT OR REPLACE INTO closing_oi
+                                    (trade_date, symbol, strike, expiry,
+                                     ce_oi, ce_chg_oi, ce_ltp, ce_iv,
+                                     pe_oi, pe_chg_oi, pe_ltp, pe_iv, spot)
+                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            """, (
+                                today, symbol,
+                                float(row["strikePrice"]),
+                                expiry,
+                                int(row.get("CE_openInterest", 0) or 0),
+                                int(row.get("CE_changeinOpenInterest", 0) or 0),
+                                float(row.get("CE_lastPrice", 0) or 0),
+                                float(row.get("CE_impliedVolatility", 0) or 0),
+                                int(row.get("PE_openInterest", 0) or 0),
+                                int(row.get("PE_changeinOpenInterest", 0) or 0),
+                                float(row.get("PE_lastPrice", 0) or 0),
+                                float(row.get("PE_impliedVolatility", 0) or 0),
+                                spot,
+                            ))
+
+                    logger.info(f"  {symbol}: closing OI saved for expiry {expiry}")
+
+                except Exception as e:
+                    logger.error(f"  {symbol} expiry {expiry} failed: {e}")
 
         except Exception as e:
             logger.error(f"  {symbol} failed: {e}")

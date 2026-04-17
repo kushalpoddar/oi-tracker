@@ -8,8 +8,9 @@ from __future__ import annotations
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -33,10 +34,56 @@ def get_db():
     return conn
 
 
+def _parse_expiry_date(expiry_str: str) -> date | None:
+    """Parse '21-Apr-2026' into a date object."""
+    for fmt in ("%d-%b-%Y", "%d-%B-%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(expiry_str, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 # ── OI Data ──────────────────────────────────────────────────────────────────
 
+@app.get("/api/expiries/{symbol}")
+def get_expiries(symbol: str):
+    """Return available expiry dates for the symbol from live data."""
+    conn = get_db()
+    if conn is None:
+        raise HTTPException(404, "Database not found")
+
+    today = date.today().isoformat()
+    rows = conn.execute("""
+        SELECT DISTINCT expiry FROM live_oi
+        WHERE symbol = ? AND timestamp >= ?
+        ORDER BY expiry
+    """, [symbol, today]).fetchall()
+
+    if not rows:
+        rows = conn.execute("""
+            SELECT DISTINCT expiry FROM live_oi
+            WHERE symbol = ?
+              AND timestamp = (SELECT MAX(timestamp) FROM live_oi WHERE symbol = ?)
+            ORDER BY expiry
+        """, [symbol, symbol]).fetchall()
+
+    conn.close()
+
+    expiries = []
+    for r in rows:
+        exp_str = r["expiry"]
+        exp_date = _parse_expiry_date(exp_str)
+        if exp_date:
+            dte = (exp_date - date.today()).days
+            expiries.append({"label": exp_str, "dte": max(dte, 0)})
+
+    expiries.sort(key=lambda e: e["dte"])
+    return {"expiries": expiries}
+
+
 @app.get("/api/oi/{symbol}")
-def get_oi_table(symbol: str):
+def get_oi_table(symbol: str, expiry: Optional[str] = Query(None)):
     """Main table data: live OI + yesterday close, merged into rows."""
     conn = get_db()
     if conn is None:
@@ -44,41 +91,60 @@ def get_oi_table(symbol: str):
 
     today = date.today().isoformat()
 
-    live_rows = conn.execute("""
+    expiry_filter = ""
+    params_extra = []
+    if expiry:
+        expiry_filter = " AND expiry = ?"
+        params_extra = [expiry]
+
+    live_rows = conn.execute(f"""
         SELECT * FROM live_oi
         WHERE symbol = ?
           AND timestamp >= ?
-          AND timestamp = (SELECT MAX(timestamp) FROM live_oi WHERE symbol = ? AND timestamp >= ?)
+          AND timestamp = (
+            SELECT MAX(timestamp) FROM live_oi
+            WHERE symbol = ? AND timestamp >= ? {expiry_filter}
+          )
+          {expiry_filter}
         ORDER BY strike
-    """, [symbol, today, symbol, today]).fetchall()
+    """, [symbol, today, symbol, today] + params_extra + params_extra).fetchall()
 
-    old_rows = conn.execute("""
+    old_rows = conn.execute(f"""
         SELECT * FROM closing_oi
         WHERE symbol = ?
           AND trade_date = (SELECT MAX(trade_date) FROM closing_oi WHERE symbol = ?)
+          {expiry_filter}
         ORDER BY strike
-    """, [symbol, symbol]).fetchall()
+    """, [symbol, symbol] + params_extra).fetchall()
 
     snap_count = conn.execute(
         "SELECT COUNT(DISTINCT timestamp) FROM live_oi WHERE symbol = ? AND timestamp >= ?",
         [symbol, today]
     ).fetchone()[0]
 
-    totals = conn.execute("""
+    totals = conn.execute(f"""
         SELECT
             COALESCE(SUM(ce_oi), 0) as total_ce,
             COALESCE(SUM(pe_oi), 0) as total_pe
         FROM live_oi
         WHERE symbol = ?
           AND timestamp >= ?
-          AND timestamp = (SELECT MAX(timestamp) FROM live_oi WHERE symbol = ? AND timestamp >= ?)
-    """, [symbol, today, symbol, today]).fetchone()
+          AND timestamp = (
+            SELECT MAX(timestamp) FROM live_oi
+            WHERE symbol = ? AND timestamp >= ? {expiry_filter}
+          )
+          {expiry_filter}
+    """, [symbol, today, symbol, today] + params_extra + params_extra).fetchone()
 
+    current_expiry = None
+    if live_rows:
+        current_expiry = live_rows[0]["expiry"]
     conn.close()
 
     if not live_rows:
         return {"rows": [], "spot": 0, "last_update": None, "snap_count": snap_count,
-                "totals": {"total_ce": 0, "total_pe": 0, "pcr": 0}, "old_date": None}
+                "totals": {"total_ce": 0, "total_pe": 0, "pcr": 0}, "old_date": None,
+                "expiry": None, "dte": None}
 
     spot = live_rows[0]["spot"]
     last_update = live_rows[0]["timestamp"]
@@ -116,6 +182,12 @@ def get_oi_table(symbol: str):
     total_pe = totals[1] if totals else 0
     pcr = total_pe / total_ce if total_ce > 0 else 0
 
+    dte = None
+    if current_expiry:
+        exp_date = _parse_expiry_date(current_expiry)
+        if exp_date:
+            dte = max((exp_date - date.today()).days, 0)
+
     return {
         "rows": rows,
         "spot": spot,
@@ -123,23 +195,29 @@ def get_oi_table(symbol: str):
         "snap_count": snap_count,
         "totals": {"total_ce": total_ce, "total_pe": total_pe, "pcr": round(pcr, 2)},
         "old_date": old_date,
+        "expiry": current_expiry,
+        "dte": dte,
     }
 
 
 @app.get("/api/chart/{symbol}/{strike}")
-def get_chart_data(symbol: str, strike: int):
+def get_chart_data(symbol: str, strike: int, expiry: Optional[str] = Query(None)):
     """Intraday CE + PE OI time-series for a single strike."""
     conn = get_db()
     if conn is None:
         raise HTTPException(404, "Database not found")
 
     today = date.today().isoformat()
-    rows = conn.execute("""
+    expiry_filter = " AND expiry = ?" if expiry else ""
+    params = [symbol, strike, today] + ([expiry] if expiry else [])
+
+    rows = conn.execute(f"""
         SELECT timestamp, ce_oi, pe_oi, ce_ltp, pe_ltp, spot
         FROM live_oi
         WHERE symbol = ? AND strike = ? AND timestamp >= ?
+        {expiry_filter}
         ORDER BY timestamp
-    """, [symbol, strike, today]).fetchall()
+    """, params).fetchall()
     conn.close()
 
     return [dict(r) for r in rows]

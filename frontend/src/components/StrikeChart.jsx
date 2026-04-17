@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
-export default function StrikeChart({ symbol, strike, onClose }) {
+export default function StrikeChart({ symbol, strike, expiry, onClose }) {
   const [data, setData] = useState(null)
   const backdropRef = useRef(null)
 
   useEffect(() => {
-    fetch(`/api/chart/${symbol}/${strike}`)
+    const qs = expiry ? `?expiry=${encodeURIComponent(expiry)}` : ''
+    fetch(`/api/chart/${symbol}/${strike}${qs}`)
       .then(r => r.json())
       .then(d => setData(d))
       .catch(() => setData([]))
-  }, [symbol, strike])
+  }, [symbol, strike, expiry])
 
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose() }

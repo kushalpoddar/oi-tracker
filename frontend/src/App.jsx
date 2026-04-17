@@ -19,19 +19,58 @@ function fmtTime(ts) {
   return timePart || ts
 }
 
+function dteLabel(dte) {
+  if (dte === null || dte === undefined) return ''
+  if (dte === 0) return 'Expiry today'
+  if (dte === 1) return '1 day left'
+  return `${dte} days left`
+}
+
+function dteColor(dte) {
+  if (dte === null || dte === undefined) return ''
+  if (dte <= 1) return 'text-[var(--red)]'
+  if (dte <= 3) return 'text-[var(--gold)]'
+  return 'text-[var(--text-muted)]'
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('NIFTY')
   const [status, setStatus] = useState(null)
   const [participants, setParticipants] = useState(null)
   const [oiData, setOiData] = useState({})
   const [selectedStrike, setSelectedStrike] = useState(null)
+  const [expiries, setExpiries] = useState({})
+  const [selectedExpiry, setSelectedExpiry] = useState({})
 
-  const fetchAll = useCallback(async () => {
+  const fetchExpiries = useCallback(async () => {
+    const newExpiries = {}
+    await Promise.all(SYMBOLS.map(async (s) => {
+      try {
+        const res = await fetch(`/api/expiries/${s}`)
+        const data = await res.json()
+        newExpiries[s] = data.expiries || []
+      } catch { newExpiries[s] = [] }
+    }))
+    setExpiries(newExpiries)
+    setSelectedExpiry(prev => {
+      const next = { ...prev }
+      for (const s of SYMBOLS) {
+        if (!next[s] && newExpiries[s]?.length) next[s] = newExpiries[s][0].label
+      }
+      return next
+    })
+  }, [])
+
+  const fetchOi = useCallback(async () => {
     try {
       const [statusRes, partRes, ...oiResults] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/participants'),
-        ...SYMBOLS.map(s => fetch(`/api/oi/${s}`)),
+        ...SYMBOLS.map(s => {
+          const exp = selectedExpiry[s]
+          const qs = exp ? `?expiry=${encodeURIComponent(exp)}` : ''
+          return fetch(`/api/oi/${s}${qs}`)
+        }),
       ])
       setStatus(await statusRes.json())
       setParticipants(await partRes.json())
@@ -43,21 +82,32 @@ export default function App() {
     } catch (e) {
       console.error('Fetch error:', e)
     }
-  }, [])
+  }, [selectedExpiry])
 
   useEffect(() => {
     let active = true
-    const run = async () => { if (active) await fetchAll() }
-    run()
-    const interval = setInterval(fetchAll, 30000)
+    const init = async () => {
+      if (!active) return
+      await fetchExpiries()
+      if (active) await fetchOi()
+    }
+    init()
+    const interval = setInterval(fetchOi, 30000)
     return () => { active = false; clearInterval(interval) }
-  }, [fetchAll])
+  }, [fetchExpiries, fetchOi])
 
   const currentOi = oiData[activeTab]
+  const currentExpiries = expiries[activeTab] || []
+  const activeExpiry = selectedExpiry[activeTab] || ''
+
+  const handleExpiryChange = (expLabel) => {
+    setSelectedExpiry(prev => ({ ...prev, [activeTab]: expLabel }))
+    setSelectedStrike(null)
+  }
 
   return (
     <div className="px-2 sm:px-4 py-3">
-      <StatusBar status={status} onRefresh={fetchAll} />
+      <StatusBar status={status} onRefresh={() => { fetchExpiries(); fetchOi() }} />
 
       <ParticipantChart data={participants} />
 
@@ -81,10 +131,35 @@ export default function App() {
         ))}
       </div>
 
+      {/* Expiry selector */}
+      {currentExpiries.length > 0 && (
+        <div className="flex items-center gap-2 mt-4 flex-wrap">
+          <span className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Expiry</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {currentExpiries.map(exp => (
+              <button
+                key={exp.label}
+                onClick={() => handleExpiryChange(exp.label)}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer border ${
+                  activeExpiry === exp.label
+                    ? 'bg-[var(--gold)] text-black border-[var(--gold)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-gray-700 hover:border-[var(--gold)]/50 hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {exp.label}
+                <span className={`ml-1.5 text-[10px] ${activeExpiry === exp.label ? 'text-black/60' : dteColor(exp.dte)}`}>
+                  {exp.dte === 0 ? '(today)' : `(${exp.dte}d)`}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {currentOi && currentOi.rows.length > 0 ? (
         <>
-          {/* Spot price — full width */}
-          <div className="flex items-center justify-between mt-4 mb-2"
+          {/* Spot price + expiry info */}
+          <div className="flex items-center justify-between mt-3 mb-2"
             style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.25)', borderRadius: 8, padding: '10px 16px' }}
           >
             <div className="flex items-center gap-2">
@@ -94,6 +169,16 @@ export default function App() {
               </span>
             </div>
             <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+              {currentOi.expiry && (
+                <span className="flex items-center gap-1.5">
+                  <span>Exp: {currentOi.expiry}</span>
+                  {currentOi.dte !== null && currentOi.dte !== undefined && (
+                    <span className={`font-bold ${dteColor(currentOi.dte)}`}>
+                      ({dteLabel(currentOi.dte)})
+                    </span>
+                  )}
+                </span>
+              )}
               {currentOi.last_update && <span>Updated {fmtTime(currentOi.last_update)}</span>}
               {currentOi.old_date && <span>Prev close: {fmtDate(currentOi.old_date)}</span>}
             </div>
@@ -135,6 +220,7 @@ export default function App() {
         <StrikeChart
           symbol={activeTab}
           strike={selectedStrike}
+          expiry={activeExpiry}
           onClose={() => setSelectedStrike(null)}
         />
       )}
