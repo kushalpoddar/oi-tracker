@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 export default function StrikeChart({ symbol, strike, onClose }) {
   const [data, setData] = useState(null)
@@ -29,8 +29,8 @@ export default function StrikeChart({ symbol, strike, onClose }) {
   const chartData = data?.length
     ? data.map(d => ({
         time: d.timestamp.split(' ').pop()?.split('.')[0]?.slice(0, 5) || d.timestamp,
-        ce_oi: d.ce_oi,
-        pe_oi: d.pe_oi,
+        'Call OI': d.ce_oi,
+        'Put OI': d.pe_oi,
       }))
     : []
 
@@ -41,7 +41,6 @@ export default function StrikeChart({ symbol, strike, onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
     >
       <div className="bg-[var(--bg-secondary)] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700">
-        {/* Header */}
         <div className="flex justify-between items-center px-5 py-4 border-b border-gray-700">
           <h3 className="font-bold text-lg">📈 {symbol} — {strike.toLocaleString()}</h3>
           <button
@@ -52,48 +51,26 @@ export default function StrikeChart({ symbol, strike, onClose }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-5">
           {data === null ? (
             <div className="text-center py-12 text-[var(--text-muted)]">Loading chart...</div>
           ) : data.length === 0 ? (
             <div className="text-center py-12 text-[var(--text-muted)]">No intraday data for this strike yet.</div>
           ) : (
-            <>
-              {/* CE OI Chart */}
-              <div className="mb-6">
-                <div className="text-sm font-semibold text-[var(--ce-color)] mb-2">CALL OI</div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={chartData}>
-                    <XAxis dataKey="time" tick={{ fill: '#aaa', fontSize: 11 }} />
-                    <YAxis tick={{ fill: '#aaa', fontSize: 11 }} tickFormatter={v => (v / 1000).toFixed(0) + 'K'} />
-                    <Tooltip
-                      contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
-                      labelStyle={{ color: '#e0e0e0' }}
-                      formatter={(v) => v.toLocaleString()}
-                    />
-                    <Area type="monotone" dataKey="ce_oi" stroke="#ef5350" fill="#ef5350" fillOpacity={0.15} strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* PE OI Chart */}
-              <div>
-                <div className="text-sm font-semibold text-[var(--pe-color)] mb-2">PUT OI</div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={chartData}>
-                    <XAxis dataKey="time" tick={{ fill: '#aaa', fontSize: 11 }} />
-                    <YAxis tick={{ fill: '#aaa', fontSize: 11 }} tickFormatter={v => (v / 1000).toFixed(0) + 'K'} />
-                    <Tooltip
-                      contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
-                      labelStyle={{ color: '#e0e0e0' }}
-                      formatter={(v) => v.toLocaleString()}
-                    />
-                    <Area type="monotone" dataKey="pe_oi" stroke="#66bb6a" fill="#66bb6a" fillOpacity={0.15} strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </>
+            <ResponsiveContainer width="100%" height={350}>
+              <AreaChart data={chartData}>
+                <XAxis dataKey="time" tick={{ fill: '#aaa', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#aaa', fontSize: 11 }} tickFormatter={v => (v / 1000).toFixed(0) + 'K'} />
+                <Tooltip
+                  contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
+                  labelStyle={{ color: '#e0e0e0' }}
+                  formatter={(v) => v.toLocaleString()}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area type="monotone" dataKey="Call OI" stroke="#ef5350" fill="#ef5350" fillOpacity={0.1} strokeWidth={2} />
+                <Area type="monotone" dataKey="Put OI" stroke="#66bb6a" fill="#66bb6a" fillOpacity={0.1} strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
         </div>
       </div>

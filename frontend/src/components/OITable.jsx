@@ -61,12 +61,12 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
         <table ref={ceTableRef} className="w-full border-collapse whitespace-nowrap">
           <thead>
             <tr className="bg-[#2a1520]">
-              <th colSpan={6} className="text-center text-sm font-bold py-2 text-[var(--ce-color)] tracking-wider uppercase">
+              <th colSpan={4} className="text-center text-sm font-bold py-2 text-[var(--ce-color)] tracking-wider uppercase">
                 CALL (CE)
               </th>
             </tr>
             <tr className="bg-[#1e1215] border-b border-[var(--ce-color)]/30">
-              {['Vol', 'Chg OI', 'OI', 'Live', 'LTP', '₹ Cr'].map(h => <th key={h} className="py-1.5 px-1 text-center text-[11px] font-semibold text-[var(--ce-color)] opacity-70 uppercase tracking-wide">{h}</th>)}
+              {['Vol', 'Chg OI', 'OI', 'Live'].map(h => <th key={h} className="py-1.5 px-1 text-center text-[11px] font-semibold text-[var(--ce-color)] opacity-70 uppercase tracking-wide">{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -87,8 +87,6 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                     {hasAnyPct && <div className="text-[11px]">{pctTag(row.ce_pct) || '\u00A0'}</div>}
                   </button>
                 </td>
-                <td className="text-center px-1 py-1.5 text-[var(--text-muted)] text-[12px]">{row.ce_ltp?.toFixed(1) || '—'}</td>
-                <td className="text-center px-1 py-1.5 text-[var(--gold)] text-[12px] font-semibold">{row.ce_val_cr?.toFixed(1) || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -127,12 +125,12 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
         <table ref={peTableRef} className="w-full border-collapse whitespace-nowrap">
           <thead>
             <tr className="bg-[#152a1a]">
-              <th colSpan={6} className="text-center text-sm font-bold py-2 text-[var(--pe-color)] tracking-wider uppercase">
+              <th colSpan={4} className="text-center text-sm font-bold py-2 text-[var(--pe-color)] tracking-wider uppercase">
                 PUT (PE)
               </th>
             </tr>
             <tr className="bg-[#121e15] border-b border-[var(--pe-color)]/30">
-              {['₹ Cr', 'LTP', 'Live', 'OI', 'Chg OI', 'Vol'].map(h => <th key={h} className="py-1.5 px-1 text-center text-[11px] font-semibold text-[var(--pe-color)] opacity-70 uppercase tracking-wide">{h}</th>)}
+              {['Live', 'OI', 'Chg OI', 'Vol'].map(h => <th key={h} className="py-1.5 px-1 text-center text-[11px] font-semibold text-[var(--pe-color)] opacity-70 uppercase tracking-wide">{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -141,8 +139,6 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                 key={row.strike}
                 className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/20' : ''} ${selectedStrike === row.strike ? 'bg-blue-900/30' : ''}`}
               >
-                <td className="text-center px-1 py-1.5 text-[var(--gold)] text-[12px] font-semibold">{row.pe_val_cr?.toFixed(1) || '—'}</td>
-                <td className="text-center px-1 py-1.5 text-[var(--text-muted)] text-[12px]">{row.pe_ltp?.toFixed(1) || '—'}</td>
                 <td className="text-center px-1 py-1.5">
                   <button
                     onClick={() => onStrikeClick(row.strike)}
