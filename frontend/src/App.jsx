@@ -39,6 +39,7 @@ export default function App() {
   const [status, setStatus] = useState(null)
   const [participants, setParticipants] = useState(null)
   const [oiData, setOiData] = useState({})
+  const [vix, setVix] = useState(null)
   const [selectedStrike, setSelectedStrike] = useState(null)
   const [expiries, setExpiries] = useState({})
   const [selectedExpiry, setSelectedExpiry] = useState({})
@@ -68,9 +69,10 @@ export default function App() {
   const fetchOi = useCallback(async () => {
     const curExpiry = selectedExpiryRef.current
     try {
-      const [statusRes, partRes, ...oiResults] = await Promise.all([
+      const [statusRes, partRes, vixRes, ...oiResults] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/participants'),
+        fetch('/api/vix'),
         ...SYMBOLS.map(s => {
           const exp = curExpiry[s]
           const qs = exp ? `?expiry=${encodeURIComponent(exp)}` : ''
@@ -79,6 +81,8 @@ export default function App() {
       ])
       setStatus(await statusRes.json())
       setParticipants(await partRes.json())
+      const vixData = await vixRes.json()
+      if (vixData.available) setVix(vixData)
       const newOi = {}
       for (let i = 0; i < SYMBOLS.length; i++) {
         newOi[SYMBOLS[i]] = await oiResults[i].json()
@@ -195,7 +199,7 @@ export default function App() {
 
           <KeyLevels levels={currentOi.levels} spot={currentOi.spot} />
 
-          {/* CE OI, PE OI, PCR */}
+          {/* CE OI, PE OI, PCR, VIX */}
           <div className="flex gap-3 mb-4">
             <div className="flex-1 bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2 flex items-center justify-center gap-2">
               <span className="text-[var(--ce-color)] text-xs font-semibold uppercase tracking-wide">CE OI</span>
@@ -209,6 +213,15 @@ export default function App() {
               <span className="text-xs font-semibold uppercase tracking-wide">PCR</span>
               <span className="text-sm font-bold tabular-nums">{currentOi.totals.pcr.toFixed(2)}</span>
             </div>
+            {vix && (
+              <div className="flex-1 rounded-lg px-4 py-2 flex items-center justify-center gap-2" style={vixStyle(vix.pct_change)}>
+                <span className="text-xs font-semibold uppercase tracking-wide">VIX</span>
+                <span className="text-sm font-bold tabular-nums">{vix.value.toFixed(2)}</span>
+                <span className={`text-[11px] font-semibold ${vix.pct_change >= 0 ? 'opacity-80' : 'opacity-80'}`}>
+                  {vix.pct_change >= 0 ? '▲' : '▼'}{Math.abs(vix.pct_change).toFixed(1)}%
+                </span>
+              </div>
+            )}
           </div>
 
           <OITable
@@ -243,4 +256,11 @@ function pcrStyle(pcr) {
   if (pcr > 1.2) return { background: 'rgba(102,187,106,0.12)', border: '1px solid rgba(102,187,106,0.35)', color: 'var(--green)' }
   if (pcr < 0.8) return { background: 'rgba(239,83,80,0.12)', border: '1px solid rgba(239,83,80,0.35)', color: 'var(--red)' }
   return { background: 'var(--bg-secondary)', border: '1px solid rgba(107,114,128,0.5)', color: 'var(--text-primary)' }
+}
+
+function vixStyle(pctChange) {
+  // VIX rising = fear/bearish, VIX falling = calm/bullish
+  if (pctChange > 3) return { background: 'rgba(239,83,80,0.15)', border: '1px solid rgba(239,83,80,0.4)', color: 'var(--red)' }
+  if (pctChange < -3) return { background: 'rgba(102,187,106,0.12)', border: '1px solid rgba(102,187,106,0.35)', color: 'var(--green)' }
+  return { background: 'rgba(144,202,249,0.08)', border: '1px solid rgba(144,202,249,0.3)', color: 'var(--blue)' }
 }

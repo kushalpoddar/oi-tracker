@@ -324,6 +324,32 @@ def get_participants():
     return {"available": True, "data": participants, "trade_date": trade_date}
 
 
+@app.get("/api/vix")
+def get_vix():
+    """Fetch India VIX from NSE."""
+    try:
+        from pnsea import NSE
+        nse = NSE()
+        raw = nse.session.get(
+            "https://www.nseindia.com/api/allIndices", timeout=10
+        )
+        for item in raw.json().get("data", []):
+            if item.get("indexSymbol") == "INDIA VIX":
+                return {
+                    "available": True,
+                    "value": item.get("last", 0),
+                    "change": item.get("variation", 0),
+                    "pct_change": item.get("percentChange", 0),
+                    "open": item.get("open", 0),
+                    "high": item.get("high", 0),
+                    "low": item.get("low", 0),
+                    "prev_close": item.get("previousClose", 0),
+                }
+    except Exception:
+        pass
+    return {"available": False}
+
+
 @app.get("/api/status")
 def get_status():
     """App status: current time, snapshot count."""
