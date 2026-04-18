@@ -44,6 +44,53 @@ def _parse_expiry_date(expiry_str: str) -> date | None:
     return None
 
 
+def _compute_levels(rows: list[dict], spot: float) -> dict:
+    """Derive support, resistance, and max pain from OI data."""
+    if not rows:
+        return {"resistance": [], "support": [], "max_pain": None}
+
+    spot_int = int(spot)
+
+    ce_above = sorted(
+        [r for r in rows if r["strike"] >= spot_int and r["ce_live"] > 0],
+        key=lambda r: r["ce_live"], reverse=True,
+    )
+    resistance = [
+        {"strike": r["strike"], "oi": r["ce_live"], "chg_oi": r["ce_chg_oi"]}
+        for r in ce_above[:3]
+    ]
+    resistance.sort(key=lambda r: r["strike"])
+
+    pe_below = sorted(
+        [r for r in rows if r["strike"] <= spot_int and r["pe_live"] > 0],
+        key=lambda r: r["pe_live"], reverse=True,
+    )
+    support = [
+        {"strike": r["strike"], "oi": r["pe_live"], "chg_oi": r["pe_chg_oi"]}
+        for r in pe_below[:3]
+    ]
+    support.sort(key=lambda r: r["strike"], reverse=True)
+
+    all_strikes = [r["strike"] for r in rows]
+    max_pain_strike = None
+    min_pain = float("inf")
+    for test_strike in all_strikes:
+        pain = 0
+        for r in rows:
+            ce_itm = max(test_strike - r["strike"], 0) * r["ce_live"]
+            pe_itm = max(r["strike"] - test_strike, 0) * r["pe_live"]
+            pain += ce_itm + pe_itm
+        if pain < min_pain:
+            min_pain = pain
+            max_pain_strike = test_strike
+
+    return {
+        "resistance": resistance,
+        "support": support,
+        "max_pain": max_pain_strike,
+    }
+
+
 # ── OI Data ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/expiries/{symbol}")
@@ -188,6 +235,8 @@ def get_oi_table(symbol: str, expiry: Optional[str] = Query(None)):
         if exp_date:
             dte = max((exp_date - date.today()).days, 0)
 
+    levels = _compute_levels(rows, spot)
+
     return {
         "rows": rows,
         "spot": spot,
@@ -197,6 +246,7 @@ def get_oi_table(symbol: str, expiry: Optional[str] = Query(None)):
         "old_date": old_date,
         "expiry": current_expiry,
         "dte": dte,
+        "levels": levels,
     }
 
 

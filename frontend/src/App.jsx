@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import StatusBar from './components/StatusBar'
 import ParticipantChart from './components/ParticipantChart'
+import KeyLevels from './components/KeyLevels'
 import OITable from './components/OITable'
 import StrikeChart from './components/StrikeChart'
 
@@ -191,6 +192,8 @@ export default function App() {
               {currentOi.old_date && <span>Prev close: {fmtDate(currentOi.old_date)}</span>}
             </div>
           </div>
+
+          <KeyLevels levels={currentOi.levels} spot={currentOi.spot} />
 
           {/* CE OI, PE OI, PCR */}
           <div className="flex gap-3 mb-4">
