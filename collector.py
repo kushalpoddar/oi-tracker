@@ -214,8 +214,8 @@ def collect_live():
 # --close: day-end closing snapshot at 3:30 PM
 # ---------------------------------------------------------------------------
 
-def collect_closing():
-    today = date.today().isoformat()
+def collect_closing(for_date: date | None = None):
+    today = (for_date or date.today()).isoformat()
     logger.info(f"Collecting closing OI for {today}")
 
     conn = get_db()
@@ -272,37 +272,46 @@ def collect_closing():
 # Participant-wise OI CSV fetcher
 # ---------------------------------------------------------------------------
 
-def fetch_participant_oi_csv() -> pd.DataFrame | None:
+def fetch_participant_oi_csv(for_date: date | None = None) -> pd.DataFrame | None:
     """Fetch participant-wise OI CSV from NSE archives and return normalized rows."""
     import io
-    import urllib.request
 
-    now = datetime.now(IST)
-    date_ddmmyyyy = now.strftime("%d%m%Y")
+    dt = for_date or datetime.now(IST).date()
+    date_ddmmyyyy = dt.strftime("%d%m%Y")
 
     urls = [
         f"https://archives.nseindia.com/content/nsccl/fao_participant_oi_{date_ddmmyyyy}.csv",
         f"https://nsearchives.nseindia.com/content/nsccl/fao_participant_oi_{date_ddmmyyyy}.csv",
     ]
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/csv,text/html,application/xhtml+xml,*/*",
-        "Referer": "https://www.nseindia.com/",
-    }
+    # Use pnsea's authenticated session (works from non-Indian IPs)
+    try:
+        from pnsea import NSE
+        session = NSE().session
+    except Exception:
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.nseindia.com/",
+        })
 
     for url in urls:
         try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                csv_text = resp.read().decode("utf-8")
-                # Skip the first title row, use row 2 as header
-                df = pd.read_csv(io.StringIO(csv_text), skiprows=1)
-                df.columns = [c.strip() for c in df.columns]
-                if not df.empty:
-                    logger.info(f"  Fetched participant OI from {url}")
-                    return df
+            resp = session.get(url, timeout=15)
+            if resp.status_code != 200:
+                logger.debug(f"  {url} returned {resp.status_code}")
+                continue
+            csv_text = resp.text
+            if not csv_text.strip() or "<html" in csv_text[:200].lower():
+                logger.debug(f"  {url} returned HTML instead of CSV")
+                continue
+            df = pd.read_csv(io.StringIO(csv_text), skiprows=1)
+            df.columns = [c.strip() for c in df.columns]
+            if not df.empty:
+                logger.info(f"  Fetched participant OI from {url}")
+                return df
         except Exception as e:
             logger.debug(f"  {url} failed: {e}")
             continue
@@ -370,34 +379,36 @@ def normalize_participant_df(df: pd.DataFrame) -> pd.DataFrame:
 # --dayend: participant OI + FII/DII activity (after 5:30 PM)
 # ---------------------------------------------------------------------------
 
-def collect_dayend():
-    today = date.today().isoformat()
-    logger.info(f"Collecting day-end participant data for {today}")
+def collect_dayend(for_date: date | None = None):
+    target = for_date or date.today()
+    target_iso = target.isoformat()
+    logger.info(f"Collecting day-end participant data for {target_iso}")
 
     conn = get_db()
 
-    # FII/DII activity via nsepython
-    try:
-        import nsepython as nsepy
-        fii_df = nsepy.nse_fiidii()
-        if fii_df is not None and not fii_df.empty:
-            for _, row in fii_df.iterrows():
-                buy = float(str(row.get("buyValue", 0)).replace(",", "") or 0)
-                sell = float(str(row.get("sellValue", 0)).replace(",", "") or 0)
-                net = float(str(row.get("netValue", 0)).replace(",", "") or 0)
-                with conn:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO fii_dii_activity
-                            (trade_date, category, buy_value, sell_value, net_value)
-                        VALUES (?,?,?,?,?)
-                    """, (str(row.get("date", today)), str(row.get("category", "")), buy, sell, net))
-            logger.info("  FII/DII activity saved")
-    except Exception as e:
-        logger.error(f"  FII/DII failed: {e}")
+    # FII/DII activity via nsepython (only works for latest date)
+    if for_date is None:
+        try:
+            import nsepython as nsepy
+            fii_df = nsepy.nse_fiidii()
+            if fii_df is not None and not fii_df.empty:
+                for _, row in fii_df.iterrows():
+                    buy = float(str(row.get("buyValue", 0)).replace(",", "") or 0)
+                    sell = float(str(row.get("sellValue", 0)).replace(",", "") or 0)
+                    net = float(str(row.get("netValue", 0)).replace(",", "") or 0)
+                    with conn:
+                        conn.execute("""
+                            INSERT OR REPLACE INTO fii_dii_activity
+                                (trade_date, category, buy_value, sell_value, net_value)
+                            VALUES (?,?,?,?,?)
+                        """, (str(row.get("date", target_iso)), str(row.get("category", "")), buy, sell, net))
+                logger.info("  FII/DII activity saved")
+        except Exception as e:
+            logger.error(f"  FII/DII failed: {e}")
 
     # Participant-wise OI CSV from NSE archives
     try:
-        p_df = fetch_participant_oi_csv()
+        p_df = fetch_participant_oi_csv(target)
         if p_df is not None and not p_df.empty:
             p_df = normalize_participant_df(p_df)
             for _, row in p_df.iterrows():
@@ -414,7 +425,7 @@ def collect_dayend():
                              pro_long, pro_short)
                         VALUES (?,?,?,?,?,?,?,?,?,?)
                     """, (
-                        today,
+                        target_iso,
                         instrument,
                         _safe_int(row.get("client_long", 0)),
                         _safe_int(row.get("client_short", 0)),
@@ -438,25 +449,42 @@ def collect_dayend():
 # CLI
 # ---------------------------------------------------------------------------
 
+def _parse_date_arg(args: list[str]) -> date | None:
+    """Extract --date YYYY-MM-DD from CLI args."""
+    for i, a in enumerate(args):
+        if a == "--date" and i + 1 < len(args):
+            try:
+                return date.fromisoformat(args[i + 1])
+            except ValueError:
+                print(f"Invalid date format: {args[i + 1]}  (use YYYY-MM-DD)")
+                sys.exit(1)
+    return None
+
+
 if __name__ == "__main__":
     init_db()
 
     if len(sys.argv) < 2:
-        print("Usage: python3 collector.py --live | --close | --dayend | --all")
+        print("Usage: python3 collector.py --live | --close | --dayend | --all [--date YYYY-MM-DD]")
+        print("  --date    Backfill for a specific date (works with --close, --dayend, --all)")
         sys.exit(1)
 
     mode = sys.argv[1]
+    target_date = _parse_date_arg(sys.argv)
+
+    if target_date:
+        logger.info(f"Running for date: {target_date.isoformat()}")
 
     if mode == "--live":
         collect_live()
     elif mode == "--close":
-        collect_closing()
+        collect_closing(target_date)
     elif mode == "--dayend":
-        collect_dayend()
+        collect_dayend(target_date)
     elif mode == "--all":
         collect_live()
-        collect_closing()
-        collect_dayend()
+        collect_closing(target_date)
+        collect_dayend(target_date)
     else:
         print(f"Unknown mode: {mode}")
         sys.exit(1)
