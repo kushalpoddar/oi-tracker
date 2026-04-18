@@ -234,7 +234,6 @@ export default function App() {
       ) : currentOi ? (
         <div className="text-center py-12 text-[var(--text-muted)]">
           No live data for <b>{activeTab}</b> yet today.
-          <br />Run <code className="bg-gray-800 px-2 py-1 rounded text-sm mt-2 inline-block">python3 collector.py --live</code>
         </div>
       ) : (
         <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
