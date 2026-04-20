@@ -55,7 +55,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
   }, [rows, syncHeights])
 
   return (
-    <div className="flex font-mono text-[13px]">
+    <div className="flex text-[13px]">
       {/* CE side */}
       <div ref={leftRef} className="flex-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <table ref={ceTableRef} className="w-full border-collapse whitespace-nowrap">
@@ -81,7 +81,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                 <td className="text-center px-1 py-1.5">
                   <button
                     onClick={() => onStrikeClick(row.strike)}
-                    className={`${liveColor(row.ce_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
+                    className={`${liveColor(row.ce_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none text-[13px] p-0`}
                   >
                     {row.ce_live.toLocaleString('en-IN')}
                     {hasAnyPct && <div className="text-[11px]">{pctTag(row.ce_pct) || '\u00A0'}</div>}
@@ -142,7 +142,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                 <td className="text-center px-1 py-1.5">
                   <button
                     onClick={() => onStrikeClick(row.strike)}
-                    className={`${liveColor(row.pe_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
+                    className={`${liveColor(row.pe_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none text-[13px] p-0`}
                   >
                     {row.pe_live.toLocaleString('en-IN')}
                     {hasAnyPct && <div className="text-[11px]">{pctTag(row.pe_pct) || '\u00A0'}</div>}
