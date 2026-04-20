@@ -274,6 +274,16 @@ def get_chart_data(symbol: str, strike: int, expiry: Optional[str] = Query(None)
         raise HTTPException(404, "Database not found")
 
     today = date.today().isoformat()
+
+    if not expiry:
+        row = conn.execute("""
+            SELECT expiry FROM live_oi
+            WHERE symbol = ? AND strike = ? AND timestamp >= ?
+            ORDER BY expiry LIMIT 1
+        """, [symbol, strike, today]).fetchone()
+        if row:
+            expiry = row["expiry"]
+
     expiry_filter = " AND expiry = ?" if expiry else ""
     params = [symbol, strike, today] + ([expiry] if expiry else [])
 
