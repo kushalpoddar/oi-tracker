@@ -40,6 +40,7 @@ export default function App() {
   const [participants, setParticipants] = useState(null)
   const [oiData, setOiData] = useState({})
   const [vix, setVix] = useState(null)
+  const [futures, setFutures] = useState({})
   const [selectedStrike, setSelectedStrike] = useState(null)
   const [expiries, setExpiries] = useState({})
   const [selectedExpiry, setSelectedExpiry] = useState({})
@@ -69,10 +70,11 @@ export default function App() {
   const fetchOi = useCallback(async () => {
     const curExpiry = selectedExpiryRef.current
     try {
-      const [statusRes, partRes, vixRes, ...oiResults] = await Promise.all([
+      const [statusRes, partRes, vixRes, ...rest] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/participants'),
         fetch('/api/vix'),
+        ...SYMBOLS.map(s => fetch(`/api/futures/${s}`)),
         ...SYMBOLS.map(s => {
           const exp = curExpiry[s]
           const qs = exp ? `?expiry=${encodeURIComponent(exp)}` : ''
@@ -83,6 +85,14 @@ export default function App() {
       setParticipants(await partRes.json())
       const vixData = await vixRes.json()
       if (vixData.available) setVix(vixData)
+      const futResults = rest.slice(0, SYMBOLS.length)
+      const oiResults = rest.slice(SYMBOLS.length)
+      const newFut = {}
+      for (let i = 0; i < SYMBOLS.length; i++) {
+        const f = await futResults[i].json()
+        if (f.available) newFut[SYMBOLS[i]] = f
+      }
+      setFutures(newFut)
       const newOi = {}
       for (let i = 0; i < SYMBOLS.length; i++) {
         newOi[SYMBOLS[i]] = await oiResults[i].json()
@@ -110,6 +120,7 @@ export default function App() {
   }, [selectedExpiry]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentOi = oiData[activeTab]
+  const currentFut = futures[activeTab]
   const currentExpiries = expiries[activeTab] || []
   const activeExpiry = selectedExpiry[activeTab] || ''
 
@@ -171,15 +182,28 @@ export default function App() {
 
       {currentOi && currentOi.rows.length > 0 ? (
         <>
-          {/* Spot price + expiry info */}
-          <div className="flex items-center justify-between mt-3 mb-2"
+          {/* Spot + Futures price bar */}
+          <div className="flex items-center justify-between mt-3 mb-2 flex-wrap gap-2"
             style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.25)', borderRadius: 8, padding: '10px 16px' }}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-[var(--gold)] text-xs font-semibold uppercase tracking-wide">Spot</span>
-              <span className="text-[var(--gold)] text-xl font-bold tabular-nums">
-                ₹{Number(currentOi.spot).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--gold)] text-xs font-semibold uppercase tracking-wide">Spot</span>
+                <span className="text-[var(--gold)] text-xl font-bold tabular-nums">
+                  ₹{Number(currentOi.spot).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {currentFut && (
+                <div className="flex items-center gap-1.5 border-l border-[var(--gold)]/30 pl-4">
+                  <span className="text-[var(--blue)] text-xs font-semibold uppercase tracking-wide">Fut</span>
+                  <span className="text-[var(--blue)] text-lg font-bold tabular-nums">
+                    ₹{Number(currentFut.price).toLocaleString('en-IN')}
+                  </span>
+                  <span className={`text-[11px] font-bold ${currentFut.premium >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
+                    {currentFut.premium >= 0 ? '+' : ''}{currentFut.premium.toFixed(1)}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
               {currentOi.expiry && (
@@ -203,11 +227,11 @@ export default function App() {
           <div className="flex gap-3 mb-4">
             <div className="flex-1 bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2 flex items-center justify-center gap-2">
               <span className="text-[var(--ce-color)] text-xs font-semibold uppercase tracking-wide">CE OI</span>
-              <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_ce.toLocaleString()}</span>
+              <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_ce.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex-1 bg-[var(--bg-secondary)] border border-gray-700/50 rounded-lg px-4 py-2 flex items-center justify-center gap-2">
               <span className="text-[var(--pe-color)] text-xs font-semibold uppercase tracking-wide">PE OI</span>
-              <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_pe.toLocaleString()}</span>
+              <span className="text-[var(--text-primary)] text-sm font-bold tabular-nums">{currentOi.totals.total_pe.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex-1 rounded-lg px-4 py-2 flex items-center justify-center gap-2" style={pcrStyle(currentOi.totals.pcr)}>
               <span className="text-xs font-semibold uppercase tracking-wide">PCR</span>

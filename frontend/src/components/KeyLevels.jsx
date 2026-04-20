@@ -8,7 +8,7 @@ export default function KeyLevels({ levels, spot }) {
     if (v >= 1_00_00_000) return (v / 1_00_00_000).toFixed(1) + 'Cr'
     if (v >= 1_00_000) return (v / 1_00_000).toFixed(1) + 'L'
     if (v >= 1000) return (v / 1000).toFixed(0) + 'K'
-    return v.toLocaleString()
+    return v.toLocaleString('en-IN')
   }
 
   const maxOI = Math.max(
@@ -28,7 +28,7 @@ export default function KeyLevels({ levels, spot }) {
         {max_pain && (
           <span className="text-[11px] text-[var(--text-muted)]">
             Max Pain:{' '}
-            <span className="font-bold text-[var(--gold)]">{max_pain.toLocaleString()}</span>
+            <span className="font-bold text-[var(--gold)]">{max_pain.toLocaleString('en-IN')}</span>
           </span>
         )}
       </div>
@@ -47,7 +47,7 @@ export default function KeyLevels({ levels, spot }) {
                 <div key={r.strike} className="flex items-center gap-2">
                   <span className="text-[10px] font-bold text-[var(--red)] opacity-60 w-5 shrink-0">{tag}</span>
                   <span className="text-xs font-semibold tabular-nums w-14 text-right text-[var(--text-primary)]">
-                    {r.strike.toLocaleString()}
+                    {r.strike.toLocaleString('en-IN')}
                   </span>
                   <div className="flex-1 h-3.5 rounded-sm overflow-hidden" style={{ background: 'rgba(239,83,80,0.1)' }}>
                     <div
@@ -70,7 +70,7 @@ export default function KeyLevels({ levels, spot }) {
         >
           <span className="text-[9px] uppercase tracking-wider text-[var(--gold)] opacity-60 font-semibold">Spot</span>
           <span className="text-sm font-bold text-[var(--gold)] tabular-nums">
-            {Number(spot).toLocaleString()}
+            {Number(spot).toLocaleString('en-IN')}
           </span>
         </div>
 
@@ -87,7 +87,7 @@ export default function KeyLevels({ levels, spot }) {
                 <div key={s.strike} className="flex items-center gap-2">
                   <span className="text-[10px] font-bold text-[var(--green)] opacity-60 w-5 shrink-0">{tag}</span>
                   <span className="text-xs font-semibold tabular-nums w-14 text-right text-[var(--text-primary)]">
-                    {s.strike.toLocaleString()}
+                    {s.strike.toLocaleString('en-IN')}
                   </span>
                   <div className="flex-1 h-3.5 rounded-sm overflow-hidden" style={{ background: 'rgba(102,187,106,0.1)' }}>
                     <div
@@ -114,7 +114,7 @@ function ChgBadge({ val }) {
   const arrow = val > 0 ? '▲' : '▼'
   const fmt = Math.abs(val) >= 1000
     ? (Math.abs(val) / 1000).toFixed(0) + 'K'
-    : Math.abs(val).toLocaleString()
+    : Math.abs(val).toLocaleString('en-IN')
   return (
     <span className={`text-[9px] font-semibold ${color} w-10 text-right shrink-0`}>
       {arrow}{fmt}

@@ -350,6 +350,39 @@ def get_participants():
     return {"available": True, "data": participants, "trade_date": trade_date}
 
 
+@app.get("/api/futures/{symbol}")
+def get_futures(symbol: str):
+    """Fetch nearest-month futures price for the symbol."""
+    try:
+        from pnsea import NSE
+        nse = NSE()
+        raw = nse.session.get(
+            "https://www.nseindia.com/api/liveEquity-derivatives?index=nse50_fut",
+            timeout=10,
+        )
+        for item in raw.json().get("data", []):
+            if item.get("underlying") == symbol and item.get("instrumentType") == "FUTIDX":
+                spot = item.get("underlyingValue", 0)
+                fut = item.get("lastPrice", 0)
+                premium = round(fut - spot, 2) if spot and fut else 0
+                return {
+                    "available": True,
+                    "price": fut,
+                    "change": item.get("change", 0),
+                    "pct_change": item.get("pChange", 0),
+                    "open": item.get("openPrice", 0),
+                    "high": item.get("highPrice", 0),
+                    "low": item.get("lowPrice", 0),
+                    "oi": item.get("openInterest", 0),
+                    "volume": item.get("volume", 0),
+                    "expiry": item.get("expiryDate", ""),
+                    "premium": premium,
+                }
+    except Exception:
+        pass
+    return {"available": False}
+
+
 @app.get("/api/vix")
 def get_vix():
     """Fetch India VIX from NSE."""

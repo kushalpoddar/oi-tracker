@@ -11,7 +11,7 @@ function formatContracts(val) {
   const abs = Math.abs(val)
   if (abs >= 100000) return `${(val / 100000).toFixed(1)}L`
   if (abs >= 1000) return `${Math.round(val / 1000)}K`
-  return val.toLocaleString()
+  return val.toLocaleString('en-IN')
 }
 
 export default function ParticipantChart({ data }) {
@@ -44,7 +44,7 @@ export default function ParticipantChart({ data }) {
           <Tooltip
             contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
             labelStyle={{ color: '#e0e0e0' }}
-            formatter={(v) => v.toLocaleString()}
+            formatter={(v) => v.toLocaleString('en-IN')}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="Call Long" fill="#66BB6A" radius={[0, 3, 3, 0]}>

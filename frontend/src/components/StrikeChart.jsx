@@ -43,7 +43,7 @@ export default function StrikeChart({ symbol, strike, expiry, onClose }) {
     >
       <div className="bg-[var(--bg-secondary)] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700">
         <div className="flex justify-between items-center px-5 py-4 border-b border-gray-700">
-          <h3 className="font-bold text-lg">📈 {symbol} — {strike.toLocaleString()}</h3>
+          <h3 className="font-bold text-lg">📈 {symbol} — {strike.toLocaleString('en-IN')}</h3>
           <button
             onClick={onClose}
             className="text-[var(--text-muted)] hover:text-white cursor-pointer bg-transparent border-none text-2xl leading-none px-2"
@@ -65,7 +65,7 @@ export default function StrikeChart({ symbol, strike, expiry, onClose }) {
                 <Tooltip
                   contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
                   labelStyle={{ color: '#e0e0e0' }}
-                  formatter={(v) => v.toLocaleString()}
+                  formatter={(v) => v.toLocaleString('en-IN')}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Area type="monotone" dataKey="Call OI" stroke="#ef5350" fill="#ef5350" fillOpacity={0.1} strokeWidth={2} />

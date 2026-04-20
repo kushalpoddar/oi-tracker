@@ -20,7 +20,7 @@ function chgColor(val) {
 }
 
 function fmtChg(val) {
-  return val > 0 ? `+${val.toLocaleString()}` : val.toLocaleString()
+  return val > 0 ? `+${val.toLocaleString('en-IN')}` : val.toLocaleString('en-IN')
 }
 
 export default function OITable({ rows, onStrikeClick, selectedStrike }) {
@@ -75,15 +75,15 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                 key={row.strike}
                 className={`border-b border-gray-800/50 ${row.is_atm ? 'bg-yellow-900/20' : ''} ${selectedStrike === row.strike ? 'bg-blue-900/30' : ''}`}
               >
-                <td className="text-center px-1 py-1.5 text-[var(--ce-color)] opacity-50">{row.ce_volume.toLocaleString()}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--ce-color)] opacity-50">{row.ce_volume.toLocaleString('en-IN')}</td>
                 <td className={`text-center px-1 py-1.5 ${chgColor(row.ce_chg_oi)}`}>{fmtChg(row.ce_chg_oi)}</td>
-                <td className="text-center px-1 py-1.5 text-[var(--ce-color)] opacity-50">{row.ce_old.toLocaleString()}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--ce-color)] opacity-50">{row.ce_old.toLocaleString('en-IN')}</td>
                 <td className="text-center px-1 py-1.5">
                   <button
                     onClick={() => onStrikeClick(row.strike)}
                     className={`${liveColor(row.ce_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
                   >
-                    {row.ce_live.toLocaleString()}
+                    {row.ce_live.toLocaleString('en-IN')}
                     {hasAnyPct && <div className="text-[11px]">{pctTag(row.ce_pct) || '\u00A0'}</div>}
                   </button>
                 </td>
@@ -112,7 +112,7 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                 style={{ background: row.is_atm ? '#ff8c00' : '#ffd700' }}
               >
                 <td className={`text-center px-3 py-1.5 font-semibold text-black ${row.is_atm ? 'font-extrabold text-[15px]' : ''}`}>
-                  {row.strike.toLocaleString()}
+                  {row.strike.toLocaleString('en-IN')}
                 </td>
               </tr>
             ))}
@@ -144,13 +144,13 @@ export default function OITable({ rows, onStrikeClick, selectedStrike }) {
                     onClick={() => onStrikeClick(row.strike)}
                     className={`${liveColor(row.pe_pct)} hover:text-white hover:underline cursor-pointer bg-transparent border-none font-mono text-[13px] p-0`}
                   >
-                    {row.pe_live.toLocaleString()}
+                    {row.pe_live.toLocaleString('en-IN')}
                     {hasAnyPct && <div className="text-[11px]">{pctTag(row.pe_pct) || '\u00A0'}</div>}
                   </button>
                 </td>
-                <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_old.toLocaleString()}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_old.toLocaleString('en-IN')}</td>
                 <td className={`text-center px-1 py-1.5 ${chgColor(row.pe_chg_oi)}`}>{fmtChg(row.pe_chg_oi)}</td>
-                <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_volume.toLocaleString()}</td>
+                <td className="text-center px-1 py-1.5 text-[var(--pe-color)] opacity-50">{row.pe_volume.toLocaleString('en-IN')}</td>
               </tr>
             ))}
           </tbody>
