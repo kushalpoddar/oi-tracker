@@ -138,6 +138,22 @@ def get_oi_table(symbol: str, expiry: Optional[str] = Query(None)):
 
     today = date.today().isoformat()
 
+    if not expiry:
+        row = conn.execute("""
+            SELECT expiry FROM live_oi
+            WHERE symbol = ? AND timestamp >= ?
+            ORDER BY expiry LIMIT 1
+        """, [symbol, today]).fetchone()
+        if not row:
+            row = conn.execute("""
+                SELECT expiry FROM live_oi
+                WHERE symbol = ?
+                  AND timestamp = (SELECT MAX(timestamp) FROM live_oi WHERE symbol = ?)
+                ORDER BY expiry LIMIT 1
+            """, [symbol, symbol]).fetchone()
+        if row:
+            expiry = row["expiry"]
+
     expiry_filter = ""
     params_extra = []
     if expiry:
