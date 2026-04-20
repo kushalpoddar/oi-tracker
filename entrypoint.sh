@@ -18,8 +18,8 @@ TZ=Asia/Kolkata
 # Closing OI at 3:35 PM
 35 15 * * 1-5 cd $APP_DIR && python collector.py --close >> $LOG_FILE 2>&1
 
-# Day-end participant OI at 5:30 PM and 6:30 PM (retry)
-30 17,18 * * 1-5 cd $APP_DIR && python collector.py --dayend >> $LOG_FILE 2>&1
+# Day-end participant OI at 5:30 PM, 6:30 PM, 8:30 PM, 10:30 PM (retries)
+30 17,18,20,22 * * 1-5 cd $APP_DIR && python collector.py --dayend >> $LOG_FILE 2>&1
 
 CRON
 

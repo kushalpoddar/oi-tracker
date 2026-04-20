@@ -1,10 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const INDEXES = [
-  { key: 'NIFTY', label: 'NIFTY 50' },
-  { key: 'BANKNIFTY', label: 'BANK NIFTY' },
-]
-
 const COLS = [
   { key: 'rank', label: '#', align: 'center', sortable: false },
   { key: 'symbol', label: 'Stock', align: 'left', sortable: true },
@@ -35,31 +30,31 @@ function rowBg(pctChange) {
   return 'transparent'
 }
 
-export default function Constituents() {
-  const [activeIndex, setActiveIndex] = useState('NIFTY')
-  const [data, setData] = useState({})
+export default function Constituents({ symbol }) {
+  const [data, setData] = useState(null)
   const [sortKey, setSortKey] = useState('weight')
   const [sortAsc, setSortAsc] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const fetchData = useCallback(async (idx) => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/constituents/${idx}`)
+      const res = await fetch(`/api/constituents/${symbol}`)
       const json = await res.json()
-      if (json.available) setData(prev => ({ ...prev, [idx]: json }))
+      if (json.available) setData(json)
     } catch (e) {
       console.error('Constituents fetch error:', e)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [symbol])
 
   useEffect(() => {
-    fetchData(activeIndex)
-    const interval = setInterval(() => fetchData(activeIndex), 5 * 60 * 1000)
+    setData(null)
+    fetchData()
+    const interval = setInterval(fetchData, 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [activeIndex, fetchData])
+  }, [fetchData])
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -70,8 +65,7 @@ export default function Constituents() {
     }
   }
 
-  const current = data[activeIndex]
-  const stocks = current?.stocks || []
+  const stocks = data?.stocks || []
 
   const sorted = [...stocks].sort((a, b) => {
     let av = a[sortKey], bv = b[sortKey]
@@ -85,60 +79,40 @@ export default function Constituents() {
   const maxWeight = Math.max(...stocks.map(s => s.weight), 1)
 
   return (
-    <div className="mt-5">
-      {/* Index sub-tabs */}
-      <div className="flex gap-0 border-b border-gray-700 mb-4">
-        {INDEXES.map(idx => (
-          <button
-            key={idx.key}
-            onClick={() => setActiveIndex(idx.key)}
-            className={`px-5 py-2.5 font-semibold text-sm transition-all relative cursor-pointer ${
-              activeIndex === idx.key
-                ? 'text-[var(--gold)]'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            {idx.label}
-            {activeIndex === idx.key && (
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--gold)] rounded-t" />
-            )}
-          </button>
-        ))}
-      </div>
-
+    <div className="mt-3">
       {/* Index summary bar */}
-      {current && (
+      {data && (
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4 px-4 py-3 rounded-lg"
           style={{
-            background: current.index_pct_change >= 0 ? 'rgba(102,187,106,0.08)' : 'rgba(239,83,80,0.08)',
-            border: `1px solid ${current.index_pct_change >= 0 ? 'rgba(102,187,106,0.3)' : 'rgba(239,83,80,0.3)'}`,
+            background: data.index_pct_change >= 0 ? 'rgba(102,187,106,0.08)' : 'rgba(239,83,80,0.08)',
+            border: `1px solid ${data.index_pct_change >= 0 ? 'rgba(102,187,106,0.3)' : 'rgba(239,83,80,0.3)'}`,
           }}
         >
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{current.index}</span>
-            <span className="text-xl font-bold tabular-nums" style={{ color: chgColor(current.index_pct_change) }}>
-              {fmtDec(current.index_value)}
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{data.index}</span>
+            <span className="text-xl font-bold tabular-nums" style={{ color: chgColor(data.index_pct_change) }}>
+              {fmtDec(data.index_value)}
             </span>
-            <span className="text-sm font-bold" style={{ color: chgColor(current.index_pct_change) }}>
-              {current.index_change >= 0 ? '+' : ''}{fmtDec(current.index_change)}
-              {' '}({current.index_pct_change >= 0 ? '+' : ''}{current.index_pct_change}%)
+            <span className="text-sm font-bold" style={{ color: chgColor(data.index_pct_change) }}>
+              {data.index_change >= 0 ? '+' : ''}{fmtDec(data.index_change)}
+              {' '}({data.index_pct_change >= 0 ? '+' : ''}{data.index_pct_change}%)
             </span>
           </div>
           <div className="flex items-center gap-4 text-xs">
-            <span className="text-[var(--green)] font-semibold">▲ {current.advances}</span>
-            <span className="text-[var(--red)] font-semibold">▼ {current.declines}</span>
-            <span className="text-[var(--text-muted)] font-semibold">— {current.unchanged}</span>
-            {current.last_update && (
-              <span className="text-[var(--text-muted)]">Updated: {current.last_update}</span>
+            <span className="text-[var(--green)] font-semibold">▲ {data.advances}</span>
+            <span className="text-[var(--red)] font-semibold">▼ {data.declines}</span>
+            <span className="text-[var(--text-muted)] font-semibold">— {data.unchanged}</span>
+            {data.last_update && (
+              <span className="text-[var(--text-muted)]">Updated: {data.last_update}</span>
             )}
           </div>
         </div>
       )}
 
       {/* Table */}
-      {loading && !current ? (
+      {loading && !data ? (
         <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
-      ) : !current ? (
+      ) : !data ? (
         <div className="text-center py-12 text-[var(--text-muted)]">No data available</div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-700/50">

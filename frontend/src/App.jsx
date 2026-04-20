@@ -43,6 +43,7 @@ export default function App() {
   const [vix, setVix] = useState(null)
   const [futures, setFutures] = useState({})
   const [selectedStrike, setSelectedStrike] = useState(null)
+  const [subTab, setSubTab] = useState('liveoi')
   const [expiries, setExpiries] = useState({})
   const [selectedExpiry, setSelectedExpiry] = useState({})
   const selectedExpiryRef = useRef(selectedExpiry)
@@ -138,7 +139,7 @@ export default function App() {
 
       {/* Tabs */}
       <div className="flex gap-0 mt-5 border-b border-gray-700">
-        {[...SYMBOLS, 'Constituents'].map(s => (
+        {SYMBOLS.map(s => (
           <button
             key={s}
             onClick={() => { setActiveTab(s); setSelectedStrike(null) }}
@@ -156,8 +157,25 @@ export default function App() {
         ))}
       </div>
 
+      {/* Sub-tabs: Live OI / Constituents */}
+      <div className="flex gap-3 mt-4">
+        {[{ key: 'liveoi', label: 'Live OI' }, { key: 'constituents', label: 'Constituents' }].map(t => (
+          <button
+            key={t.key}
+            onClick={() => { setSubTab(t.key); setSelectedStrike(null) }}
+            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer border ${
+              subTab === t.key
+                ? 'bg-[var(--gold)] text-black border-[var(--gold)]'
+                : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-gray-700 hover:border-[var(--gold)]/50 hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Expiry selector */}
-      {activeTab !== 'Constituents' && currentExpiries.length > 0 && (
+      {subTab === 'liveoi' && currentExpiries.length > 0 && (
         <div className="flex items-center gap-2 mt-4 flex-wrap">
           <span className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Expiry</span>
           <div className="flex gap-1.5 flex-wrap">
@@ -181,8 +199,8 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'Constituents' ? (
-        <Constituents />
+      {subTab === 'constituents' ? (
+        <Constituents symbol={activeTab} />
       ) : currentOi && currentOi.rows.length > 0 ? (
         <>
           {/* Spot + Futures price bar */}
