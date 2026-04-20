@@ -4,6 +4,7 @@ import ParticipantChart from './components/ParticipantChart'
 import KeyLevels from './components/KeyLevels'
 import OITable from './components/OITable'
 import StrikeChart from './components/StrikeChart'
+import Constituents from './components/Constituents'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY']
 
@@ -137,7 +138,7 @@ export default function App() {
 
       {/* Tabs */}
       <div className="flex gap-0 mt-5 border-b border-gray-700">
-        {SYMBOLS.map(s => (
+        {[...SYMBOLS, 'Constituents'].map(s => (
           <button
             key={s}
             onClick={() => { setActiveTab(s); setSelectedStrike(null) }}
@@ -156,7 +157,7 @@ export default function App() {
       </div>
 
       {/* Expiry selector */}
-      {currentExpiries.length > 0 && (
+      {activeTab !== 'Constituents' && currentExpiries.length > 0 && (
         <div className="flex items-center gap-2 mt-4 flex-wrap">
           <span className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide font-semibold">Expiry</span>
           <div className="flex gap-1.5 flex-wrap">
@@ -180,7 +181,9 @@ export default function App() {
         </div>
       )}
 
-      {currentOi && currentOi.rows.length > 0 ? (
+      {activeTab === 'Constituents' ? (
+        <Constituents />
+      ) : currentOi && currentOi.rows.length > 0 ? (
         <>
           {/* Spot + Futures price bar */}
           <div className="flex items-center justify-between mt-3 mb-2 flex-wrap gap-2"

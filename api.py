@@ -409,6 +409,86 @@ def get_vix():
     return {"available": False}
 
 
+INDEX_MAP = {
+    "NIFTY": "NIFTY 50",
+    "BANKNIFTY": "NIFTY BANK",
+}
+
+
+@app.get("/api/constituents/{symbol}")
+def get_constituents(symbol: str):
+    """Fetch index constituents with weight % from NSE live data."""
+    index_name = INDEX_MAP.get(symbol.upper())
+    if not index_name:
+        raise HTTPException(400, f"Unsupported index: {symbol}")
+    try:
+        import requests as req
+
+        s = req.Session()
+        s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        s.get("https://www.nseindia.com", timeout=10)
+        r = s.get(
+            f"https://www.nseindia.com/api/equity-stockIndices?index={index_name.replace(' ', '%20')}",
+            timeout=10,
+        )
+        r.raise_for_status()
+        raw = r.json()
+
+        items = raw.get("data", [])
+        index_info = None
+        stocks = []
+        for item in items:
+            if item.get("symbol") == index_name:
+                index_info = item
+            else:
+                stocks.append(item)
+
+        total_ffmc = sum(st.get("ffmc", 0) for st in stocks)
+
+        result = []
+        for st in stocks:
+            ffmc = st.get("ffmc", 0)
+            weight = round(ffmc / total_ffmc * 100, 2) if total_ffmc else 0
+            meta = st.get("meta", {})
+            result.append({
+                "symbol": st["symbol"],
+                "company": meta.get("companyName", ""),
+                "industry": meta.get("industry", ""),
+                "ltp": st.get("lastPrice", 0),
+                "open": st.get("open", 0),
+                "high": st.get("dayHigh", 0),
+                "low": st.get("dayLow", 0),
+                "prev_close": st.get("previousClose", 0),
+                "change": round(st.get("change", 0), 2),
+                "pct_change": round(st.get("pChange", 0), 2),
+                "volume": st.get("totalTradedVolume", 0),
+                "ffmc": ffmc,
+                "weight": weight,
+            })
+
+        result.sort(key=lambda x: x["weight"], reverse=True)
+
+        advance = raw.get("advance", {})
+        return {
+            "available": True,
+            "index": index_name,
+            "index_value": index_info.get("lastPrice", 0) if index_info else 0,
+            "index_change": round(index_info.get("change", 0), 2) if index_info else 0,
+            "index_pct_change": round(index_info.get("pChange", 0), 2) if index_info else 0,
+            "advances": advance.get("advances", 0),
+            "declines": advance.get("declines", 0),
+            "unchanged": advance.get("unchanged", 0),
+            "last_update": index_info.get("lastUpdateTime", "") if index_info else "",
+            "stocks": result,
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
 @app.get("/api/status")
 def get_status():
     """App status: current time, snapshot count."""
