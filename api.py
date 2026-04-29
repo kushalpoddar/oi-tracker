@@ -123,7 +123,8 @@ def get_expiries(symbol: str):
         exp_date = _parse_expiry_date(exp_str)
         if exp_date:
             dte = (exp_date - date.today()).days
-            expiries.append({"label": exp_str, "dte": max(dte, 0)})
+            if dte >= 0:
+                expiries.append({"label": exp_str, "dte": dte})
 
     expiries.sort(key=lambda e: e["dte"])
     return {"expiries": expiries}
